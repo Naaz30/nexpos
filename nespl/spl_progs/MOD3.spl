@@ -1,0 +1,237 @@
+alias functionNum R1;
+alias currentPID R2;
+
+
+
+//buffered Read or Write
+if(functionNum == 2 || functionNum == 1) then
+	
+	alias blockNum R3;
+	alias offset R4;
+	alias address R5;
+	alias pageNum R6;
+	alias bufferNum R7;
+	
+
+	
+	bufferNum = blockNum % 4;
+	pageNum = 71 + bufferNum;
+	
+
+	//acquire buffer
+	multipush(R1,R2,R3,R4,R5,R6,R7);
+	R1 = 1;
+	R3 = bufferNum;
+	call MOD_0;
+	multipop(R1,R2,R3,R4,R5,R6,R7);
+	
+	
+	alias bufferEntry R8;
+	bufferEntry = BUFFER_TABLE + bufferNum*4;
+	
+	if([bufferEntry] != blockNum) then
+		
+		if([bufferEntry + 1] == 1) then
+			
+			multipush(R1,R2,R3,R4,R5,R6,R7,R8);
+			R1 = 1;
+			R3 = pageNum;
+			R4 = [bufferEntry];
+			call MOD_4;
+			multipop(R1,R2,R3,R4,R5,R6,R7,R8);
+			
+			[bufferEntry + 1] = 0;
+		endif;
+		
+		multipush(R1,R2,R3,R4,R5,R6,R7,R8);
+		R1 = 2;
+		R4 = blockNum;
+		R3 = pageNum;
+		call MOD_4;
+		multipop(R1,R2,R3,R4,R5,R6,R7,R8);
+		
+		
+		[bufferEntry] = blockNum;
+		
+	endif;
+	
+	
+	if(functionNum == 2) then
+		//copy data to Physical address
+		[[[PROCESS_TABLE + currentPID*16 + 14] + 2 * (address/512)] * 512 + (address%512)] = [pageNum*512 + offset];
+	else
+		[pageNum*512 + offset] = address; 
+		[bufferEntry + 1] = 1;
+	endif;
+	
+	
+	
+	//release buffer
+	multipush(R1,R2,R3,R4,R5,R6,R7,R8);
+	R1 = 2;
+	R3 = bufferNum;
+	call MOD_0;
+	multipop(R1,R2,R3,R4,R5,R6,R7,R8);
+	
+	
+	return;
+	
+	
+endif;
+
+
+
+
+
+
+
+//open
+if(functionNum == 3) then
+	
+	alias fileName R3;
+	alias inodeTableEntry R4;
+	alias inodeIndex R5;
+	
+
+	
+	//searching inode table for file
+	inodeIndex = 0;
+	while(inodeIndex < MAX_FILE_NUM) do
+		inodeTableEntry = INODE_TABLE + (inodeIndex * 16);
+		if([inodeTableEntry + 1] == fileName) then
+			break;
+		endif;
+		inodeIndex = inodeIndex + 1;
+	endwhile;
+	
+	
+	//file not found
+	if(inodeIndex == MAX_FILE_NUM) then
+		R0 = -1;
+		return;
+	endif;
+	
+	
+	
+	
+	//locking inode
+	multipush(R1,R2,R3,R4,R5);
+	R1 = 4;
+	R3 = inodeIndex;
+	call MOD_0;
+	multipop(R1,R2,R3,R4,R5);
+	
+	
+	//locking failed
+	if(R0 == -1) then
+		return;
+	endif;
+	
+	//if EXEC then release inode
+	if([inodeTableEntry] == EXEC) then
+		multipush(R1,R2,R3,R4,R5);
+		R1 = 5;
+		R3 = inodeIndex;
+		call MOD_0;
+		multipop(R1,R2,R3,R4,R5);
+		
+		R0 = -1;
+		return;
+	endif;
+	
+	
+	//find free entry in the open file table
+	alias openFileTableIndex R6;
+	alias openFileTableEntry R7;
+	openFileTableIndex = 0;
+	while(openFileTableIndex < MAX_OPENFILE_NUM) do
+		if([OPEN_FILE_TABLE + openFileTableIndex*4] == -1) then
+			openFileTableEntry = OPEN_FILE_TABLE + openFileTableIndex*4;
+			break;
+		endif;
+		openFileTableIndex = openFileTableIndex + 1;
+	endwhile;
+	
+	//if no free entry in open file table
+	if(openFileTableIndex == MAX_OPENFILE_NUM) then
+		multipush(R1,R2,R3,R4,R5,R6);
+		R1 = 5;
+		R3 = inodeIndex;
+		call MOD_0;
+		multipop(R1,R2,R3,R4,R5,R6);
+		
+		R0 = -2;
+		return;
+	endif;
+	
+	
+	//updating file status table count and open file table inode index field
+	if(fileName == "root") then
+		[openFileTableEntry] = INODE_ROOT;
+	else
+		if([FILE_STATUS_TABLE + 4*inodeIndex + 1] == -1) then
+			[FILE_STATUS_TABLE + 4*inodeIndex + 1] = 1;
+		else
+			[FILE_STATUS_TABLE + 4*inodeIndex + 1] = [FILE_STATUS_TABLE + 4*inodeIndex + 1] + 1;
+		endif; 
+		[openFileTableEntry] = inodeIndex;
+	endif;
+	
+	
+	
+	//updating open file table entries
+	[openFileTableEntry + 1] = 1;
+	[openFileTableEntry + 2] = 0;
+	
+	
+	//releasing inode
+	multipush(R1,R2,R3,R4,R5,R6);
+	R1 = 5;
+	R3 = inodeIndex;
+	call MOD_0;
+	multipop(R1,R2,R3,R4,R5,R6);
+	
+	
+	
+	R0 = openFileTableIndex;
+	return;
+	
+endif;
+
+
+
+
+
+//close
+if(functionNum == 4) then
+	alias openFileTableIndex R3;
+	alias inodeIndex R4;
+	alias openFileTableEntry R5;
+	
+	openFileTableEntry = OPEN_FILE_TABLE + openFileTableIndex*4;
+	
+	inodeIndex = [openFileTableEntry];
+	[openFileTableEntry + 1] = [openFileTableEntry + 1] - 1;
+	
+	if([openFileTableEntry + 1] == 0) then
+		[openFileTableEntry] = -1;
+		[openFileTableEntry + 1] = -1;
+		[openFileTableEntry + 2] = -1;
+		[openFileTableEntry + 3] = -1;
+		
+		if([INODE_TABLE + inodeIndex*16] != "root") then
+			[FILE_STATUS_TABLE + 4*inodeIndex + 1] = [FILE_STATUS_TABLE + 4*inodeIndex + 1] - 1;
+			if([FILE_STATUS_TABLE + 4*inodeIndex + 1] == 0) then
+				[FILE_STATUS_TABLE + 4*inodeIndex + 1] = -1;
+			endif;
+		endif;
+	endif;
+	
+	return;
+	
+	
+	
+endif;
+
+
+

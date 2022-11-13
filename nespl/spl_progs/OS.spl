@@ -1,0 +1,116 @@
+//load the library code
+loadi(63,13);
+loadi(64,14);
+
+//load IDLE Program
+loadi(69,11);
+
+//load module 7
+loadi(54,67);
+loadi(55,68);
+
+//--------------------------------- IDLE PROGRAM --------------------------
+
+
+
+SP = 76 * 512 + 1;
+call BOOT_MODULE;
+
+
+
+PTBR = PAGE_TABLE_BASE;
+PTLR = 10;
+
+[PROCESS_TABLE + 0] = 0; //tick to 0
+[PROCESS_TABLE + 1] = 0;
+[PROCESS_TABLE + 4] = RUNNING;
+[PROCESS_TABLE + 11] = 76;    //Update user area page
+[PROCESS_TABLE + 13] = 8*512; //User Stack Pointer update
+[PROCESS_TABLE + 12] = 0;     // KPTR to 0
+[PROCESS_TABLE + 14] = PTBR;
+[PROCESS_TABLE + 15] = PTLR;
+
+//Library
+[PTBR+0] = -1;
+[PTBR+1] = "0000";
+[PTBR+2] = -1;
+[PTBR+3] = "0000";
+
+//Heap
+[PTBR+4] = -1;
+[PTBR+5] = "0000";
+[PTBR+6] = -1;
+[PTBR+7] = "0000";
+
+//Code
+[PTBR+8] = 69;
+[PTBR+9] = "0100";
+[PTBR+10] = -1;
+[PTBR+11] = "0000";
+[PTBR+12] = -1;
+[PTBR+13] = "0000";
+[PTBR+14] = -1;
+[PTBR+15] = "0000";
+
+//Stack
+[PTBR+16] = 70;
+[PTBR+17] = "0110";
+[PTBR+18] = -1;
+[PTBR+19] = "0000";
+
+[70*512] = [69*512 + 1];
+[SYSTEM_STATUS_TABLE + 1] = 0;
+
+SP = 8*512;
+
+// --------------------------------------------------------------------- SWAPPER DAEMON ---------------------------------
+PTBR = PAGE_TABLE_BASE + 15*20;
+PTLR = 10;
+
+[PROCESS_TABLE + 15*16] = 0;
+[PROCESS_TABLE + 15*16 + 1] = 15;
+[PROCESS_TABLE + 15*16 + 4] = CREATED;
+[PROCESS_TABLE + 15*16 + 11] = 82;    //Update user area page
+[PROCESS_TABLE + 15*16 + 13] = 8*512; //User Stack Pointer update
+[PROCESS_TABLE + 15*16 + 12] = 0;     // KPTR to 0
+[PROCESS_TABLE + 15*16 + 14] = PTBR;
+[PROCESS_TABLE + 15*16 + 15] = PTLR;
+
+//Library
+[PTBR+0] = -1;
+[PTBR+1] = "0000";
+[PTBR+2] = -1;
+[PTBR+3] = "0000";
+
+//Heap
+[PTBR+4] = -1;
+[PTBR+5] = "0000";
+[PTBR+6] = -1;
+[PTBR+7] = "0000";
+
+//Code
+[PTBR+8] = 69;
+[PTBR+9] = "0100";
+[PTBR+10] = -1;
+[PTBR+11] = "0000";
+[PTBR+12] = -1;
+[PTBR+13] = "0000";
+[PTBR+14] = -1;
+[PTBR+15] = "0000";
+
+//Stack
+[PTBR+16] = 81;
+[PTBR+17] = "0110";
+[PTBR+18] = -1;
+[PTBR+19] = "0000";
+
+[81*512] = [69*512 + 1];
+
+//resetting these values back to IDLE
+PTBR = PAGE_TABLE_BASE;
+PTLR = 10;
+
+
+SP = 8*512;
+
+ireturn;

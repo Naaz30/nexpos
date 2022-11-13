@@ -1,0 +1,227 @@
+alias processTableEntry R10;
+processTableEntry = PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16);
+
+
+
+alias ptbr R8;
+ptbr = [processTableEntry + 14];
+
+
+alias userSP R9;
+userSP = SP;
+[processTableEntry + 13] = SP;
+SP = [processTableEntry + 11] * 512 - 1;
+
+
+
+alias systemCallNumber R1;
+systemCallNumber = [[ptbr + 2*((userSP - 5)/512)] * 512 + (userSP - 5)%512]; 
+
+
+alias fileName R2;
+fileName = [[ptbr + 2*((userSP - 4)/512)] * 512 + (userSP - 4)%512];
+
+
+
+alias ret R3;
+ret = [ptbr + 2*((userSP - 1)/512)] * 512 + (userSP - 1)%512;
+
+
+//Create
+if(systemCallNumber == 1) then
+
+	
+	alias permission R4;
+	permission = [[ptbr + 2*((userSP - 3)/512)] * 512 + (userSP - 3)%512];
+	
+	[processTableEntry + 9] = 1;
+	
+	alias i R5;
+	
+	i = 0;
+	while(i<MAX_FILE_NUM) do
+		
+		if([INODE_TABLE + i* 16 + 1] == fileName) then
+			[ret] = 0;
+			[processTableEntry + 9] = 0;
+			SP = userSP;
+			ireturn;
+		endif;
+		
+		i = i + 1;
+	endwhile;
+	
+	i = 0;
+	while(i<MAX_FILE_NUM) do
+		
+		if([INODE_TABLE + i* 16 + 1] == -1) then
+			break;
+		endif;
+		
+		i = i + 1;
+	endwhile;
+	
+	if(i == MAX_FILE_NUM) then
+		[ret] = -1;
+		[processTableEntry + 9] = 0;
+		SP = userSP;
+		ireturn;
+	endif;
+	
+	
+	[INODE_TABLE + i*16] = DATA;
+	[INODE_TABLE + i*16 + 1] = fileName;
+	[INODE_TABLE + i*16 + 2] = 0;
+	[INODE_TABLE + i*16 + 3] = [processTableEntry + 3];
+	[INODE_TABLE + i*16 + 4] = permission;
+	[INODE_TABLE + i*16 + 8] = -1;
+	[INODE_TABLE + i*16 + 9] = -1;
+	[INODE_TABLE + i*16 + 10] = -1;
+	[INODE_TABLE + i*16 + 11] = -1;
+
+
+	
+	
+	[ROOT_FILE + i*8] = fileName;
+	[ROOT_FILE + i*8 + 1] = 0;
+	[ROOT_FILE + i*8 + 2] = DATA;
+	[ROOT_FILE + i*8 + 3] = [USER_TABLE + 2*[processTableEntry + 3]];
+	[ROOT_FILE + i*8 + 4] = permission;
+	
+
+
+	
+	[ret] = 0;
+	[processTableEntry + 9] = 0;
+	SP = userSP;
+	ireturn;
+	
+	
+endif;
+
+
+
+
+//Delete
+if(systemCallNumber == 4) then
+	
+	[processTableEntry + 9] = 4;
+	
+	
+	
+	alias i R4;
+	
+	i = 0;
+	while(i<MAX_FILE_NUM) do
+		
+		if([INODE_TABLE + i* 16 + 1] == fileName) then
+			break;
+		endif;
+		
+		i = i + 1;
+	endwhile;
+	
+	if(i == MAX_FILE_NUM) then
+		[ret] = 0;
+		[processTableEntry + 9] = 0;
+		SP = userSP;
+		ireturn;
+	endif;
+	
+	if([INODE_TABLE + i * 16] != DATA) then
+		[ret] = -1;
+		[processTableEntry + 9] = 0;
+		SP = userSP;
+		ireturn;
+	endif;
+	
+	//exclusive permission is set
+	if([INODE_TABLE + i*16 + 4] == 0) then
+		
+		//if current user is not root and the current user doesnt own the file
+		if([INODE_TABLE + i*16 + 3] != 1 && [INODE_TABLE + i*16 + 3] != [processTableEntry + 3]) then
+			[ret] = -1;
+			[processTableEntry + 9] = 0;
+			SP = userSP;
+			ireturn;
+		endif;
+	endif;
+	
+
+
+	//Acquire Inode
+	multipush(R1,R2,R3,R4,R8,R9,R10);
+	R1 = 4;
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	R3 = i;
+	call MOD_0;
+	multipop(R1,R2,R3,R4,R8,R9,R10);
+
+
+	
+	if([FILE_STATUS_TABLE + i*4 + 1] != -1) then
+		[ret] = -2;
+		[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+		SP = userSP;
+		ireturn;
+	endif;
+	
+	
+	alias j1 R5;
+	alias j2 R6;
+	
+	j1 = 0;
+	while(j1 < 4) do
+		if([INODE_TABLE + i*16 + 8 + j1] != -1) then
+			j2 = 0;
+			while(j2 < 4) do
+				
+				if([BUFFER_TABLE + j2*4] == [INODE_TABLE + i*16 + 8 + j1] && [BUFFER_TABLE + j2*4 + 1] == 1) then
+					[BUFFER_TABLE + j2*4 + 1] = 0;
+				endif;
+
+				j2 = j2 + 1;
+			endwhile;
+			
+			//Release Block
+			multipush(R1,R2,R3,R4,R5,R6);
+			R1 = 4;
+			R2 = [INODE_TABLE + i*16 + 8 + j1];
+			call MOD_2;
+			multipop(R1,R2,R3,R4,R5,R6);
+			
+		endif;
+		
+		j1 = j1 + 1;
+	endwhile;
+	
+	
+
+	j1 = 0;
+	while(j1<16) do
+		[INODE_TABLE + i*16 + j1] = -1;
+		j1 = j1 + 1;
+	endwhile;
+
+
+	
+	
+	[ROOT_FILE + i*8] = -1;
+
+
+
+	//Release Inode
+	multipush(R1,R2,R3,R4,R5,R6);
+	R1 = 5;
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	R3 = i;
+	call MOD_0;
+	multipop(R1,R2,R3,R4,R5,R6);
+
+	
+	
+	[ret] = 0;
+	[processTableEntry + 9] = 0;
+	SP = userSP;
+	ireturn;
+endif;

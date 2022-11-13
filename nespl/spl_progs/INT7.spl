@@ -1,0 +1,202 @@
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 5;
+
+
+
+alias userSP R1;
+userSP = SP;
+
+
+
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1]*16) + 13] = SP;
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]* 16) + 11] * 512 - 1;
+
+
+
+alias fileDescriptor R5;
+fileDescriptor = [([PTBR + 2* ((userSP - 4) / 512)] * 512) + ((userSP - 4) % 512)];
+
+
+
+alias ret R6;
+ret = ([PTBR + 2* ((userSP - 1) / 512)] * 512) + ((userSP - 1) % 512);
+
+alias word R7;
+word = [[PTBR + 2*((userSP-3)/512)] * 512 +((userSP - 3)%512)];
+
+alias modeFlag R8;
+modeFlag = PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9;
+
+
+
+
+if(fileDescriptor != -2)
+then
+	
+	//check file descriptor validity
+	if(fileDescriptor < 0 || fileDescriptor > 7) then
+		[ret] = -1;
+		SP = userSP;
+		[modeFlag] = 0;
+		ireturn;
+	endif;
+	
+	alias perProcResTableEntry R9;
+	perProcResTableEntry = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1]*16 + 11] * 512 + 496 + 2*fileDescriptor;
+
+	
+	//If resource not  file
+	if([perProcResTableEntry] != FILE) then
+		[ret] = -1;
+		SP = userSP;
+		[modeFlag] = 0;
+		ireturn;
+	endif;
+	
+	alias openFileTableIndex R10;
+	alias inodeIndex R11;
+	
+	openFileTableIndex = [perProcResTableEntry + 1];
+	inodeIndex = [OPEN_FILE_TABLE + openFileTableIndex*4];
+	
+	
+	alias userID R12;
+	alias inodeTableEntry R13;
+	userID = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 3];
+	inodeTableEntry = INODE_TABLE + inodeIndex*16;
+
+
+	
+	//If user not root or the owner of file
+	if(userID != 1 && userID != [inodeTableEntry + 3] && [inodeTableEntry + 4] == 0) then
+		[ret] = -3;
+		SP = userSP;
+		[modeFlag] = 0;
+		ireturn;
+	endif;
+
+
+	
+	//acquire inode
+	multipush(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R13);
+	R1 = 4;
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	R3 = inodeIndex;
+	call MOD_0;
+	multipop(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R13);
+
+	
+	
+	if(R0 == -1) then
+		[ret] = -1;
+		SP = userSP;
+		[modeFlag] = 0;
+		ireturn;
+	endif;
+
+
+	
+	alias LSEEK R14;
+	LSEEK = [OPEN_FILE_TABLE + openFileTableIndex*4 + 2];
+
+
+	
+	if(LSEEK == MAX_FILE_SIZE) then
+
+		//release inode
+		multipush(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R13,R14);
+		R1 = 5;
+		R2 = [SYSTEM_STATUS_TABLE + 1];
+		R3 = inodeIndex;
+		call MOD_0;
+		multipop(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R13,R14);
+			
+		[ret] = -2;
+		SP = userSP;
+		[modeFlag] = 0;
+		ireturn;
+
+	endif;
+	
+	if(LSEEK%512 == 0 && LSEEK == [inodeTableEntry + 2]) then
+		
+		//Get Free Block
+		multipush(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R13,R14);
+		R1 = 3;
+		call MOD_2;
+		multipop(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R13,R14);
+
+		
+		if(R0 == -1) then
+
+			//Release Inode
+			multipush(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R13,R14);
+			R1 = 5;
+			R2 = [SYSTEM_STATUS_TABLE + 1];
+			R3 = inodeIndex;
+			call MOD_0;
+			multipop(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R13,R14);
+			
+			[ret] = -2;
+			SP = userSP;
+			[modeFlag] = 0;
+			ireturn;
+		endif;
+		
+		[inodeTableEntry + 8 + (LSEEK/512)] = R0;
+		
+	endif;
+	
+	
+	//Buffered Write
+	multipush(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R13,R14);
+	R1 = 1;
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	R3 = [INODE_TABLE + inodeIndex* 16 + 8 + LSEEK/512];
+	R4 = LSEEK%512;
+	R5 = word;
+	call MOD_3;
+	multipop(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R13,R14);
+
+	
+
+	if(LSEEK == [inodeTableEntry + 2]) then
+		[inodeTableEntry + 2] = [inodeTableEntry + 2] + 1;
+		[ROOT_FILE + inodeIndex*8 + 1] = [ROOT_FILE + inodeIndex*8 + 1] + 1;
+	endif;
+
+
+		
+	[OPEN_FILE_TABLE + openFileTableIndex*4 + 2] = [OPEN_FILE_TABLE + openFileTableIndex*4 + 2] + 1;
+
+
+	
+	//Release Inode
+	multipush(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R13,R14);
+	R1 = 5;
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	R3 = inodeIndex;
+	call MOD_0;
+	multipop(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R13,R14);
+	
+	
+else
+	
+	
+	multipush(R1,R2,R3,R4,R5,R6,R7,R8);
+	R1 = 3;
+	R2 = [SYSTEM_STATUS_TABLE+1];
+	R3 = word;
+	call MOD_4;
+	multipop(R1,R2,R3,R4,R5,R6,R7,R8);
+	
+endif;
+
+
+
+[ret] = 0;
+SP = userSP;
+[modeFlag] = 0;
+
+ireturn;
+
+ 

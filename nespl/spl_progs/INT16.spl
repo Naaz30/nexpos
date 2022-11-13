@@ -1,0 +1,310 @@
+alias currentPID R3;
+currentPID = [SYSTEM_STATUS_TABLE + 1];
+
+alias processTableEntry R9;
+processTableEntry = PROCESS_TABLE + 16*currentPID;
+
+
+
+
+[processTableEntry + 13] = SP;
+alias userSP R4;
+userSP = SP;
+SP = [processTableEntry + 11] * 512 - 1;
+
+
+alias syscall R5;
+syscall = [[PTBR + 2*((userSP - 5)/512)] * 512 + ((userSP - 5)%512)];
+
+[processTableEntry + 9] = syscall;
+
+
+
+
+alias ret R10;
+ret = [PTBR + 2*((userSP - 1)/512)] * 512 + ((userSP - 1)%512);
+
+alias arg1 R11;
+alias arg2 R12;
+
+arg1 = [PTBR + 2*((userSP - 4)/512)] * 512 + ((userSP - 4)%512);
+
+arg2 = [PTBR + 2*((userSP - 3)/512)] * 512 + ((userSP - 3)%512);
+
+alias userTableEntry R13;
+
+
+
+//New User
+if(syscall == 22)then
+   
+    if([processTableEntry + 3] != 1 || currentPID != 2)then
+        [ret] = -2;
+	    [processTableEntry + 9] = 0;
+	    SP = [processTableEntry + 13];
+	    ireturn;
+    endif;
+
+    alias userName R6;
+    alias password R7;
+
+    userName = [arg1];
+    password = [arg2];
+
+    alias i R8;
+    i = 0;
+
+    while(i < MAX_USER_NUM)do
+     if([USER_TABLE + 2*i] == userName)then
+        [ret] = -1;
+	    [processTableEntry + 9] = 0;
+	    SP = [processTableEntry + 13];
+	    ireturn;
+     endif;
+     i = i + 1;
+    endwhile;
+
+
+    i = 0;
+
+    while(i < MAX_USER_NUM)do
+     if([USER_TABLE + 2*i] == -1)then
+        break;
+     endif;
+     i = i + 1;
+    endwhile;
+
+
+    if(i >= MAX_USER_NUM)then
+        [ret] = -3;
+	    [processTableEntry + 9] = 0;
+	    SP = [processTableEntry + 13];
+	    ireturn;
+    endif;
+
+    userTableEntry = USER_TABLE + 2*i;
+
+
+    encrypt password;
+
+    [userTableEntry] = userName;
+	[userTableEntry + 1] = password;
+
+
+
+    [ret] = 0;
+	
+
+
+endif;
+
+
+
+
+
+
+
+
+//Remove User
+if(syscall == 23)then
+
+    if([processTableEntry + 3] != 1 || currentPID != 2)then
+        [ret] = -2;
+	    [processTableEntry + 9] = 0;
+	    SP = [processTableEntry + 13];
+	    ireturn;
+    endif;
+
+
+    alias userName R6;
+    alias password R7;
+
+    userName = [arg1];
+    password = [arg2];
+
+
+
+
+    if(userName == "root" || userName == "kernel")then
+        [ret] = -2;
+	    [processTableEntry + 9] = 0;
+	    SP = [processTableEntry + 13];
+	    ireturn;
+    endif;
+
+
+    alias i R8;
+
+    i = 0;
+
+    while(i < MAX_USER_NUM)do
+       if([USER_TABLE + 2*i] == userName)then
+        break;
+       endif;
+       i = i + 1;
+    endwhile;
+
+
+    if(i >= MAX_USER_NUM)then
+        [ret] = -1;
+	    [processTableEntry + 9] = 0;
+	    SP = [processTableEntry + 13];
+	    ireturn;
+    endif;
+
+
+    userTableEntry = 2*i + USER_TABLE;
+
+    i = 0;
+	while(i < MAX_FILE_NUM) do
+		if([ROOT_FILE + i*8 + 3] == userName && [ROOT_FILE + i*8] !=-1) then
+			[ret] = -3;
+	        [processTableEntry + 9] = 0;
+	        SP = [processTableEntry + 13];
+	        ireturn;
+		endif;
+		i = i + 1;
+	endwhile;
+
+
+    [userTableEntry] = -1;
+    [userTableEntry + 1] = -1;
+
+
+    [ret] = 0;
+	
+
+endif;
+
+
+
+//Set password
+if(syscall == 24)then
+    
+   if(currentPID != 2)then
+        [ret] = -1;
+	    [processTableEntry + 9] = 0;
+	    SP = [processTableEntry + 13];
+	    ireturn;
+   endif;
+
+
+   alias userName R6;
+   alias password R7;
+
+   userName = [arg1];
+   password = [arg2];
+
+
+
+   alias i R8;
+
+    i = 0;
+
+    while(i < MAX_USER_NUM)do
+       if([USER_TABLE + 2*i] == userName)then
+        break;
+       endif;
+       i = i + 1;
+    endwhile;
+
+
+    if(i >= MAX_USER_NUM)then
+        [ret] = -2;
+	    [processTableEntry + 9] = 0;
+	    SP = [processTableEntry + 13];
+	    ireturn;
+    endif;
+
+
+    userTableEntry = 2*i + USER_TABLE;
+
+    if([processTableEntry + 3] != i)then
+        if([processTableEntry + 3] != 1)then
+            [ret] = -1;
+	        [processTableEntry + 9] = 0;
+	        SP = [processTableEntry + 13];
+	        ireturn;  
+        endif;
+    endif;
+
+
+    encrypt password;
+
+    [userTableEntry + 1] = password;
+ 
+    [ret] = 0;
+	
+
+endif;
+
+
+
+
+//Get userName
+if(syscall == 25)then
+
+   alias uID R6;
+   uID = [arg1];
+
+   if(uID<0 || uID>15)then
+      [ret] = -1;
+	  [processTableEntry + 9] = 0;
+	  SP = [processTableEntry + 13];
+	  ireturn;  
+   endif;
+
+   userTableEntry = USER_TABLE + 2*uID;
+
+   if([userTableEntry] == -1)then
+       [ret] = -1;
+	   [processTableEntry + 9] = 0;
+	   SP = [processTableEntry + 13];
+	   ireturn;
+   endif;
+
+   
+   [ret] = [userTableEntry];
+   
+
+
+endif;
+
+
+
+
+
+//get User ID
+if(syscall == 26)then
+
+   alias userName R6;
+   userName = [arg1];
+
+   alias i R8;
+   i = 0;
+   
+
+   while(i < MAX_USER_NUM)do
+       if([USER_TABLE + 2*i] == userName)then
+          [ret] = i;
+          [processTableEntry + 9] = 0;
+          SP = [processTableEntry + 13];
+          ireturn;
+       endif;
+       i = i + 1;
+   endwhile;
+
+
+   [ret] = -1;
+   
+
+
+
+endif;
+
+
+
+
+[processTableEntry + 9] = 0;
+SP = [processTableEntry + 13];
+ireturn;

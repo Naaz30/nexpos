@@ -1,0 +1,268 @@
+// Set the MODE FLAG in the process table to system call number of Fork.
+alias parentProcessTableEntryAddress R4;
+parentProcessTableEntryAddress = PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1]*16);
+
+[parentProcessTableEntryAddress + 9] = 8;
+
+// Save user stack value for later use, set up the kernel stack
+// Store the value of register SP in the UPTR field of the process table entry of the current process.
+[parentProcessTableEntryAddress + 13] = SP;
+
+// Initialize SP (kernel stack pointer) to (user area page number)*512 -1.
+SP = [parentProcessTableEntryAddress + 11] * 512  - 1 ;
+PTBR = [parentProcessTableEntryAddress + 14];
+PTLR = [parentProcessTableEntryAddress + 15];
+
+// Allocate memory and set the Process Table
+// Find a free Process Table entry by invoking the get_pcb_entry() function in Process Manager module. 
+// If no free entry is found, return -1.
+
+multipush(R4);
+R1 = GET_PCB_ENTRY;
+call PROCESS_MANAGER;
+multipop(R4);
+
+// If the return value is -1, then no free entry is found.
+if(R0 == -1)then
+    // Set the MODE FLAG in the process table to user mode.
+    [parentProcessTableEntryAddress + 9] = 0;
+    // Set the return value in the user stack to -1.
+    alias userSP_MinusOne R1;
+    userSP_MinusOne = [parentProcessTableEntryAddress + 13]-1;
+    [[PTBR + 2*((userSP_MinusOne)/512)] * 512 + ((userSP_MinusOne)%512)] = -1;
+
+    // Set the user stack pointer to the value stored in the UPTR field of the process table entry of the current process.
+    SP = [parentProcessTableEntryAddress + 13];
+    // Return to user mode.
+    ireturn;
+endif;
+
+alias childPID R1;
+alias childPTBR R2;
+alias childProcessTableEntryAddress R3;
+
+childPID = R0;
+childProcessTableEntryAddress = PROCESS_TABLE + childPID*16;
+childPTBR = [childProcessTableEntryAddress + 14];
+
+
+// The parent and the child must share the heap.  Hence, if heap pages were not allocated for the parent so far, allocate it now.
+// If heap pages are not allocated for the parent process,then allocate 2 heap pages for the parent using the get_free_page() function in Memory Manager module and set the page table entries for the heap pages of the parent.
+
+//Heap
+alias heapPageIter R5;
+alias heapPageEntryAddress R6;
+heapPageIter = 0;
+while(heapPageIter < 2) do
+    heapPageEntryAddress = PTBR+4+2*heapPageIter;
+    if([heapPageEntryAddress] ==-1) then
+        multipush(R1,R2,R3,R4,R5,R6);
+        R1 = GET_FREE_PAGE; // get free page function number
+        call MEMORY_MANAGER; // Memory Manager Module
+        multipop(R1,R2,R3,R4,R5,R6);
+        [heapPageEntryAddress] = R0;
+        [heapPageEntryAddress+1] = "0110";
+    endif;
+    heapPageIter = heapPageIter + 1;
+endwhile;
+
+
+// Invoke the get_free_page() function in Memory Manager module to obtain 3 memory pages: 2 for user stack and 1 for User Area Page of the child process.
+// User Area Page of the child process
+multipush(R1,R2,R3,R4);
+R1 = GET_FREE_PAGE; // get free page function number
+call MEMORY_MANAGER; // Memory Manager Module
+multipop(R1,R2,R3,R4);
+[childProcessTableEntryAddress+ 11]=R0;
+
+
+
+//Stack
+alias stackPageIter R5;
+alias stackPageEntryAddress R6;
+stackPageIter = 0;
+while(stackPageIter < 2) do
+    multipush(R1,R2,R3,R4,R5);
+    R1 = GET_FREE_PAGE; // get free page function number
+    call MEMORY_MANAGER; // Memory Manager Module
+    multipop(R1,R2,R3,R4,R5);
+    stackPageEntryAddress = childPTBR+16+2*stackPageIter;
+    [stackPageEntryAddress] = R0;
+    [stackPageEntryAddress+1] = "0110"; // valid bits
+    stackPageIter = stackPageIter + 1;
+endwhile;
+
+
+// Copy the parent's Process Table Entry except TICK, PID, PPID, USER AREA PAGE NUMBER, KERNEL STACK POINTER, INPUT BUFFER, PTBR and PTLR to the child.
+
+
+[childProcessTableEntryAddress + 3] = [parentProcessTableEntryAddress + 3]; // USERID
+// [childProcessTableEntryAddress + 5] = [parentProcessTableEntryAddress + 5]; // WAIT FOR WHAT
+[childProcessTableEntryAddress + 6] = [parentProcessTableEntryAddress + 6]; // SWAP FLAG
+[childProcessTableEntryAddress + 7] = [parentProcessTableEntryAddress + 7]; // INODE INDEX
+[childProcessTableEntryAddress + 10] = [parentProcessTableEntryAddress + 10]; // USER AREA SWAP STATUS
+[childProcessTableEntryAddress + 13] = [parentProcessTableEntryAddress + 13]; // USER STACK POINTER
+
+// Set the PPID field of child process to the current PID. Also set User Area Page Number to the new UA Page, MODE, TICK and Kernel Stack Pointer to 0. 
+[childProcessTableEntryAddress+ 2] = [SYSTEM_STATUS_TABLE + 1]; // PPID
+[childProcessTableEntryAddress+ 0] = 0; // TICK
+[childProcessTableEntryAddress+ 9] = 0; // MODE FLAG
+[childProcessTableEntryAddress+ 12] = 0; // KERNEL STACK POINTER
+// Set state of child process to (CREATED, _ ).
+[childProcessTableEntryAddress+4] = CREATED ;
+
+// Note : Kernel Context of the child process is empty
+// Note : PID, PTBR, PTLR fields of the child's process table is initilized by the get_pcb_entry function.
+// Copy the per-process resource table 
+
+alias parentPerProcessTableEntry R6;
+alias childPerProcessTableEntry R7;
+alias count R5;
+alias offset R8;
+count  = 0;
+while(count<8) do 
+    offset =  RESOURCE_TABLE_OFFSET+2*count;
+    parentPerProcessTableEntry = (([parentProcessTableEntryAddress + 11] ) * 512 ) + offset;
+    childPerProcessTableEntry = (([childProcessTableEntryAddress + 11] ) * 512 ) + offset;
+    
+    // Copy Entries
+    [childPerProcessTableEntry] = [parentPerProcessTableEntry];
+    [childPerProcessTableEntry+1] = [parentPerProcessTableEntry+1];
+
+    // If the resource is semaphore (check the Resource Identifier field in the per-process resource table), then using the sempahore table index, increment the PROCESS COUNT field in the semaphore table entry.
+    if([parentPerProcessTableEntry] == SEMAPHORE) then
+        alias semaphoreTableEntry R9;
+        semaphoreTableEntry = SEMAPHORE_TABLE + [parentPerProcessTableEntry + 1] * 4;
+        // For every semaphore acquired by the parent, increment Process Count in the Semaphore Table.
+        [semaphoreTableEntry + 1] = [semaphoreTableEntry + 1] + 1;
+    endif;
+
+    // If the resource is a file (check the Resource Identifier field in the per-process resource table), then using the open file table index, increment the OPEN INSTANCE COUNT field in the open file table entry.
+    // The change in Fork system call to update the semaphore table , is already done in stage 22
+    if([parentPerProcessTableEntry] == FILE) then
+        alias openFileTableEntry R9;
+        openFileTableEntry = OPEN_FILE_TABLE + [parentPerProcessTableEntry + 1] * 4;
+        // For every open file of the parent, increment the Open Instance Count in the Open File Table.
+        // The child shares open files and acquired semaphores with the parent 
+
+        [openFileTableEntry + 1] = [openFileTableEntry + 1] + 1;
+    endif;
+
+
+    count = count + 1;
+endwhile;
+
+// Copy the  per-process disk map table.
+alias parentDiskMapTableEntry R6;
+alias childDiskMapTableEntry R7;
+count=0; // R5
+parentDiskMapTableEntry = DISK_MAP_TABLE + [SYSTEM_STATUS_TABLE+1]*10 ;
+childDiskMapTableEntry = DISK_MAP_TABLE + childPID*10 ;
+while(count<10) do
+    
+    [childDiskMapTableEntry+count] = [parentDiskMapTableEntry+count];
+
+    count = count + 1;
+endwhile;
+
+
+
+// Set Page Tables
+// Copy the page table entries (code, heap and library) from the parent's page table to the child  /* Shared between parent and child */
+// Code and Library Pages must be shared read only 
+// For each page shared, increment its value in the Memory Free List
+// Set the page table entries for stack to the pages acquired earlier.
+
+
+// Copying Library and Heap (Shared)
+alias pageIter R5;
+pageIter=0;
+while(pageIter<8) do
+    [childPTBR+pageIter] = [PTBR+pageIter];
+    pageIter = pageIter + 1;
+endwhile;
+
+alias memoryFreeListEntry R6;
+pageIter=0;
+while(pageIter<8) do
+    memoryFreeListEntry = MEMORY_FREE_LIST + [PTBR+pageIter];
+    [memoryFreeListEntry] = [memoryFreeListEntry] + 1;
+    pageIter = pageIter + 2;
+endwhile;
+// Copying Library and Heap (Shared) End
+
+
+
+// Copying Code (Shared)
+alias parentCodePagePhyAddress R5;
+alias childCodePagePhyAddress R6;
+alias codePageIter R7;
+// alias offset R8;
+
+
+
+codePageIter=0;
+while(codePageIter<4) do
+    offset =  8 + 2*codePageIter; // R8
+    parentCodePagePhyAddress = PTBR + offset ;
+    childCodePagePhyAddress = childPTBR + offset;
+    [childCodePagePhyAddress] =  [parentCodePagePhyAddress];
+    [childCodePagePhyAddress+1] =  [parentCodePagePhyAddress+1];
+
+    if([parentCodePagePhyAddress]  != -1) then
+        [MEMORY_FREE_LIST+ [parentCodePagePhyAddress]] =  [MEMORY_FREE_LIST+ [parentCodePagePhyAddress]] +1;
+    endif;
+
+    codePageIter = codePageIter+1;
+endwhile;
+
+// Copying Code done
+
+// Copying Stack word by word
+// Copy word by word the contents of the parent user stack to that of the child.
+alias parentStackPagePhyAddress R5;
+alias childStackPagePhyAddress R6;
+alias stackPageIter R7;
+alias wordIter R8;
+alias offset R9;
+stackPageIter =0;
+
+while(stackPageIter<2) do
+    wordIter = 0;
+    while(wordIter <512) do
+        offset =  16 + 2*stackPageIter;
+        parentStackPagePhyAddress = PTBR + offset;
+        childStackPagePhyAddress = childPTBR + offset; 
+        [[childStackPagePhyAddress]*512+wordIter] =  [[parentStackPagePhyAddress]*512+wordIter];
+        wordIter = wordIter+1;
+    endwhile;
+    stackPageIter = stackPageIter+1;
+endwhile;
+// Copying Stack word by word Done
+
+// Store the current BP value to the begining of the kernel stack.
+// According to the ExpL calling convention, the BP register is not saved in the user stack. 
+// This value is saved here so that the context switch module can restore it when the child is run. 
+
+[[childProcessTableEntryAddress + 11] * 512] = BP;
+
+// Set the return value to 0 for the child process
+alias childSP R5;
+childSP = [childProcessTableEntryAddress+13];
+[[childPTBR + 2 * ((childSP-1)/ 512)] * 512 + ((childSP-1) % 512)] = 0;
+
+
+
+// The PID of the child process is set as the return value for the parent process
+alias parentSP R5;
+parentSP = [parentProcessTableEntryAddress+13];
+[[PTBR + 2 * ((parentSP-1)/ 512)] * 512 + ((parentSP-1) % 512)] = childPID;
+
+
+// Set the MODE_FLAG in the process table entry of the parent process to 0.
+[parentProcessTableEntryAddress + 9] = 0;
+
+
+// Restore SP to User SP and return to the parent process.
+SP = [parentProcessTableEntryAddress + 13];
+ireturn;

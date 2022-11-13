@@ -1,0 +1,307 @@
+alias functionNum R1;
+alias currentPID R2;
+alias returnVal R0;
+
+
+
+
+
+
+
+//Acquire Buffer
+if(functionNum == 1)then
+
+    alias bufferNumber R3;
+
+    while([BUFFER_TABLE + 4*bufferNumber + 2] != -1)do
+
+        [PROCESS_TABLE + 16*currentPID + 4] = WAIT_BUFFER;
+        [PROCESS_TABLE + 16*currentPID + 5] = bufferNumber;
+
+        multipush(R1,R2,R3,R4);
+        call MOD_5;
+        multipop(R1,R2,R3,R4);
+
+    endwhile; 
+
+    [BUFFER_TABLE + 4*bufferNumber + 2] = currentPID;
+
+    return;
+
+endif;
+
+
+
+
+
+
+
+
+//Release Buffer
+if(functionNum == 2)then
+
+    alias bufferNumber R3;
+
+    if([BUFFER_TABLE + 4*bufferNumber + 2] != currentPID)then
+        returnVal = -1;
+        return;
+    endif;
+
+    [BUFFER_TABLE + 4*bufferNumber + 2] = -1;
+
+    alias i R4;
+    i = 0;
+
+    while(i < 16)do
+
+        if([PROCESS_TABLE + 16*i + 4] == WAIT_BUFFER && [PROCESS_TABLE + 16*i + 5] == bufferNumber)then
+
+            [PROCESS_TABLE + 16*i + 4] = READY;
+
+        endif;
+        i = i + 1;
+    endwhile;
+
+
+    returnVal = 0;
+    return;
+
+endif;
+
+
+
+
+
+
+//AcquireDisk
+if( functionNum == 3)then
+
+   while([DISK_STATUS_TABLE ] == 1)do
+
+       [PROCESS_TABLE + currentPID*16 + 4] = WAIT_DISK;
+       multipush(R0,R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R13,R14,R15);
+       call MOD_5;
+	   multipop(R0,R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R13,R14,R15);
+
+   endwhile;
+
+   [DISK_STATUS_TABLE ] = 1;
+   [DISK_STATUS_TABLE + 4] = currentPID;
+   return;
+
+endif;
+
+
+
+
+
+//Acquire Semaphore
+if( functionNum == 6)then
+
+    alias i R4;
+	i = 0;
+
+	while( i < MAX_SEM_COUNT)do
+
+       if([SEMAPHORE_TABLE + 4*i + 1] == 0)then
+
+              [SEMAPHORE_TABLE + i*4 + 1] = 1;
+			  [SEMAPHORE_TABLE + i*4 + 0] = -1;
+			
+			  returnVal = i;
+			  return;
+
+	   endif;       
+       i = i + 1;
+	endwhile;
+    
+    returnVal = -1;
+    return;
+
+endif;
+
+
+
+
+
+
+
+
+
+
+//Release Semaphore
+if( functionNum == 7)then
+
+    alias semID R3;
+
+	if([SEMAPHORE_TABLE + 4*semID] == currentPID)then
+	 
+        [SEMAPHORE_TABLE + 4*semID] = -1;
+
+		alias i R4;
+		i = 0;
+
+		while(i < 16)do
+
+            if([PROCESS_TABLE + 16*i + 4] == WAIT_SEMAPHORE && [PROCESS_TABLE + 16*i + 5] == semID)then
+  
+                [PROCESS_TABLE + 16*i + 4] = READY;
+
+			endif;
+
+			i = i + 1;
+
+		endwhile;
+
+
+		[SEMAPHORE_TABLE + 4*semID + 1] = [SEMAPHORE_TABLE + 4*semID + 1] - 1;
+
+	endif;
+
+	returnVal = 0;
+	return;
+
+endif;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//AcquireTerminal
+if( (functionNum == 8) ) then
+	while( [TERMINAL_STATUS_TABLE] == 1) do
+		[PROCESS_TABLE + currentPID*16 + 4] = WAIT_TERMINAL;
+		multipush(R0,R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R13,R14,R15);
+		call MOD_5;
+		multipop(R0,R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R13,R14,R15);
+	endwhile;
+
+	[TERMINAL_STATUS_TABLE] = 1;
+	[TERMINAL_STATUS_TABLE+1] = currentPID;
+	return;
+endif;
+
+
+
+//ReleaseTerminal
+if( (functionNum == 9) ) then
+	if( (currentPID != [TERMINAL_STATUS_TABLE+1]) ) then
+		returnVal = -1;
+		return;
+	endif;
+
+	[TERMINAL_STATUS_TABLE] = 0;
+	alias i R3;
+	i = 0;
+	while( (i < 16) ) do
+		if([PROCESS_TABLE + i*16 + 4] == WAIT_TERMINAL) then
+			[PROCESS_TABLE + i*16 + 4] = READY;
+		endif;
+		i = i + 1;
+	endwhile;
+	returnVal = 0;
+	return;
+endif;
+
+
+
+
+
+
+
+
+//Acquire Inode
+if(functionNum == 4)then
+
+ 
+ alias inodeIndex R3;
+
+ 
+ //waiting for inode to unlock
+ while([FILE_STATUS_TABLE + inodeIndex*4] != -1)do
+
+    [PROCESS_TABLE + (currentPID*16) + 4] = WAIT_FILE;
+	[PROCESS_TABLE + (currentPID*16) + 5] = inodeIndex;
+
+    multipush(R1,R2,R3,R4);
+    call MOD_5;
+    multipop(R1,R2,R3,R4);
+
+ endwhile;
+
+
+ //If file was deleted before it could be locked again
+ if([INODE_TABLE + inodeIndex*16 + 1] == -1) then
+		returnVal = -1;
+		return;
+ endif;
+
+
+ //Locking file 
+ [FILE_STATUS_TABLE + inodeIndex*4] = currentPID;
+ R0 = 0;
+ return;
+
+
+
+endif;
+
+
+
+
+
+
+//Release Inode
+if(functionNum == 5)then
+
+
+   alias inodeIndex R3;
+
+
+   //If locking pid is not the current process pid 
+   if([FILE_STATUS_TABLE + 4*inodeIndex] != currentPID)then
+
+        returnVal = -1;
+        return;
+
+   endif;
+
+
+   //unlocking the file
+   [FILE_STATUS_TABLE + 4*inodeIndex] = -1;
+
+
+   alias i R4;
+   i = 0;
+
+
+   //changing the states of all processes waiting for the file to be unlocked
+   while(i < 16)do
+
+      if([PROCESS_TABLE + (i*16) + 4] == WAIT_FILE && [PROCESS_TABLE + (i*16) + 5] == inodeIndex) then
+			[PROCESS_TABLE + (i*16) + 4] = READY;
+	  endif;
+
+
+	   i = i+ 1;
+   endwhile;
+
+   
+   returnVal = 0;
+   return;
+
+
+endif;
+
+
+
+return;

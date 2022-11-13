@@ -1,0 +1,101 @@
+// Pushing BP of current process because expl program does not save the BP while the schduler is called from the timer
+multipush(BP);
+// 2 Obtain the PID of currently executing process from System Status Table.
+
+alias processTableEntryAddress R1;
+processTableEntryAddress = PROCESS_TABLE + [SYSTEM_STATUS_TABLE+1] * 16;
+
+
+// Note that instead of saving the actual value of KPTR, we are saving KPTR%512. This is because the OS design stipulates that KPTR must contain the offset of the kernel stack pointer within the User Area Page. This is done so as to allow the OS to relocate the User Area Page if necessary.
+[processTableEntryAddress + 12] = SP % PAGE_SIZE;
+[processTableEntryAddress + 14] = PTBR;
+[processTableEntryAddress + 15] = PTLR;
+
+
+alias iter R4;
+alias newProcessTableEntryAddress R3;
+alias newPID R2;
+
+
+newPID = -1;
+
+// if (PAGING_STATUS in the System Status Table is not 0) (Paging is ongoing )
+if( [SYSTEM_STATUS_TABLE + 5] != 0 ) then
+
+    // If the paging process is not blocked  ( the paging process is executing a disk operation )
+    if([PROCESS_TABLE + 16*SWAPPER_DAEMON +4] != WAIT_DISK) then
+        // Choose the Swapper Daemon to be scheduled.
+        newPID = SWAPPER_DAEMON;
+    else   
+        // else  Choose Idle Process for scheduling.
+        newPID = IDLE_PROCESS;
+
+    endif;
+
+endif;
+    //  Find the next non swapped process to schedule using the Round Robin scheduling technique, 
+
+    // Round Robin algorithm for scheduling
+
+    // Iterate through the Process Table entries, starting from the succeeding entry of the current process to find a process in READY or CREATED state.
+    // If no such process can be found, select the idle process as the new process to be scheduled. Save PID of new process to be scheduled as newPID.
+if(newPID == -1) then
+    iter =  [SYSTEM_STATUS_TABLE+1]+1 ; // current id +1
+    // p+1 to 14
+    while(iter<MAX_PROC_NUM-1) do
+        processTableEntryAddress = PROCESS_TABLE + iter * 16;
+        // finding a non swapped process in ready or created state
+        if(([processTableEntryAddress+6] == 0) && ([processTableEntryAddress + 4] == READY || [processTableEntryAddress + 4] == CREATED)  ) then
+            newPID = iter;
+            break;
+        endif;
+        iter=iter+1;
+    endwhile;
+
+    // 1 to p-1
+    if(newPID == -1) then
+        iter = 1;
+        while(iter <  [SYSTEM_STATUS_TABLE+1]) do
+            processTableEntryAddress = PROCESS_TABLE + iter * 16;
+            // finding a non swapped process in ready or created state
+            if(([processTableEntryAddress+6] == 0) && ([processTableEntryAddress + 4] == READY || [processTableEntryAddress + 4] == CREATED)  ) then
+                newPID = iter;
+                break;
+            endif;
+            iter=iter+1;
+        endwhile;
+    endif;
+
+    if(newPID == -1) then
+        newPID = IDLE_PROCESS;
+    endif;
+
+endif;
+
+
+
+
+
+//  Restore the SP, PTBR and PTLR values from the Process Table entry for the new process.
+newProcessTableEntryAddress = PROCESS_TABLE + newPID * 16;
+//Set back Kernel SP, PTBR , PTLR
+SP =  [newProcessTableEntryAddress + 11] * 512 + [newProcessTableEntryAddress + 12] ;
+PTBR = [newProcessTableEntryAddress + 14];
+PTLR = [newProcessTableEntryAddress + 15];
+
+// Set the PID field of the System Status Table as newPID.
+[SYSTEM_STATUS_TABLE + 1] = newPID;
+
+if([newProcessTableEntryAddress + 4] == CREATED) then
+    SP = [newProcessTableEntryAddress +13];
+
+    // Store the value in the first word of the kernel stack to the BP register.
+    [newProcessTableEntryAddress + 4] = RUNNING;
+    [newProcessTableEntryAddress + 9] = 0; // MODE FLAG
+    BP = [[newProcessTableEntryAddress + 11] * 512];
+    ireturn;
+endif;
+
+[newProcessTableEntryAddress + 4] = RUNNING;
+multipop(BP);
+return;
