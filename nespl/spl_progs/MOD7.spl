@@ -58,7 +58,7 @@ loadi(29,42);
 loadi(30,43);
 loadi(31,44);
 
-//load INT15
+//INT15
 loadi(32,45);
 loadi(33,46);
 
@@ -294,7 +294,7 @@ endwhile;
 
 
 i = 0;
-while(i <= 82) do
+while(i <= 84) do
 	[MEMORY_FREE_LIST + i] = 1;
 	i = i + 1;
 endwhile;
@@ -305,9 +305,17 @@ while(i < 128) do
 endwhile;
 
 [SYSTEM_STATUS_TABLE + 3] = 0;
-[SYSTEM_STATUS_TABLE + 2] = 45; 
+[SYSTEM_STATUS_TABLE + 2] = 43; 
 [SYSTEM_STATUS_TABLE + 4] = 0; 
 [SYSTEM_STATUS_TABLE + 5] = 0; 
+[SYSTEM_STATUS_TABLE + 6] = 14;
+[SYSTEM_STATUS_TABLE + 7] = 0;
+
+
+
+[ACCESS_LOCK_TABLE] = 0;
+[ACCESS_LOCK_TABLE + 1] = 0;
+
 
 
 [DISK_STATUS_TABLE + 0] = 0;

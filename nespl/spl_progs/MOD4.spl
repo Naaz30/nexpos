@@ -22,10 +22,22 @@ if(functionNum == 1) then
 	store(pageNum,blockNum);
 	
 	[PROCESS_TABLE + currentPID*16 + 4] = WAIT_DISK;
+
+
+	multipush(R1,R2,R3,R4);
+    R1 = RELEASE_LOCK;
+    R2 = KERN_LOCK;
+    call ACCESS_CONTROL;
+    multipop(R1,R2,R3,R4);
 	
 	multipush(R1,R2,R3,R4);
 	call MOD_5;
 	multipop(R1,R2,R3,R4);
+
+	multipush(R1,R2,R3,R4);
+    R1 = ACQUIRE_KERN_LOCK;
+    call ACCESS_CONTROL;
+    multipop(R1,R2,R3,R4);
 	
 	return;
 endif;
@@ -59,10 +71,23 @@ if(functionNum == 2) then
 	//print "afterloadcmd";
 	
 	[PROCESS_TABLE + (currentPID*16) + 4] = WAIT_DISK;
+
+    multipush(R1,R2,R3,R4);
+    R1 = RELEASE_LOCK;
+    R2 = KERN_LOCK;
+    call ACCESS_CONTROL;
+    multipop(R1,R2,R3,R4);
+
 	
 	multipush(R1,R2,R3,R4);
 	call MOD_5;
 	multipop(R1,R2,R3,R4);
+
+
+	multipush(R1,R2,R3,R4);
+    R1 = ACQUIRE_KERN_LOCK;
+    call ACCESS_CONTROL;
+    multipop(R1,R2,R3,R4);
 	
 	
 	return;
@@ -104,10 +129,23 @@ if(functionNum == 4) then
 
 	
 	[PROCESS_TABLE + (currentPID * 16) + 4] = WAIT_TERMINAL;
+
+
+	multipush(R1,R2,R3,R4);
+    R1 = RELEASE_LOCK;
+    R2 = KERN_LOCK;
+    call ACCESS_CONTROL;
+    multipop(R1,R2,R3,R4);
 	
 	multipush(R1,R2,R3);
 	call MOD_5;
 	multipop(R1,R2,R3);
+
+
+	multipush(R1,R2,R3,R4);
+    R1 = ACQUIRE_KERN_LOCK;
+    call ACCESS_CONTROL;
+    multipop(R1,R2,R3,R4);
 	
 	alias physicalAddr R4;
 	physicalAddr = [PTBR + 2 * ((R3)/512)] * 512 + (R3)%512;

@@ -12,7 +12,7 @@ if(functionNum == 1) then
 	
 	
 	i = 3;
-	while(i < 15) do
+	while(i < 14) do
 		processTableEntry = PROCESS_TABLE + i*16;
 		if([processTableEntry + 6] == 0 && [processTableEntry + 4] == WAIT_PROCESS) then
 			index = i;
@@ -23,9 +23,9 @@ if(functionNum == 1) then
 	
 	
 
-	if(i == 15) then
+	if(i == 14) then
 		i = 3;
-		while(i < 15) do
+		while(i < 14) do
 			processTableEntry = PROCESS_TABLE + i*16;
 			if([processTableEntry + 6] == 0 && [processTableEntry + 4] == WAIT_SEMAPHORE) then
 				index = i;
@@ -41,9 +41,9 @@ if(functionNum == 1) then
 	
 
 
-	if(i == 15) then
+	if(i == 14) then
 		i = 3;
-		while(i < 15) do
+		while(i < 14) do
 			processTableEntry = PROCESS_TABLE + i*16;
 			if([processTableEntry + 6] == 0 && [processTableEntry + 4] != RUNNING && [processTableEntry + 4] != ALLOCATED && [processTableEntry + 4] != TERMINATED) then
 			
@@ -156,7 +156,7 @@ if(functionNum == 2) then
 	
 	
 	i = 3;
-	while(i < 15) do
+	while(i < 14) do
 		if([PROCESS_TABLE + i*16 + 6] == 1 && [PROCESS_TABLE + i*16 + 4] == READY) then
 			if(index == -1) then
 				index = i;

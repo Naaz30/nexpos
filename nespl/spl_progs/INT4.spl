@@ -1,5 +1,5 @@
 alias processTableEntry R10;
-processTableEntry = PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16);
+processTableEntry = PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 5*CORE + 1] * 16);
 
 
 
@@ -11,6 +11,15 @@ alias userSP R9;
 userSP = SP;
 [processTableEntry + 13] = SP;
 SP = [processTableEntry + 11] * 512 - 1;
+
+
+
+
+multipush(R8,R9,R10);
+R1 = ACQUIRE_KERN_LOCK;
+call ACCESS_CONTROL;
+multipop(R8,R9,R10);
+
 
 
 
@@ -38,18 +47,31 @@ if(systemCallNumber == 1) then
 	
 	alias i R5;
 	
+
+
 	i = 0;
 	while(i<MAX_FILE_NUM) do
 		
 		if([INODE_TABLE + i* 16 + 1] == fileName) then
 			[ret] = 0;
 			[processTableEntry + 9] = 0;
+
+            multipush(R9);
+            R1 = RELEASE_LOCK;
+            R2 = KERN_LOCK;
+            call ACCESS_CONTROL;
+            multipop(R9);
+
+
 			SP = userSP;
 			ireturn;
 		endif;
 		
 		i = i + 1;
 	endwhile;
+
+
+
 	
 	i = 0;
 	while(i<MAX_FILE_NUM) do
@@ -60,39 +82,65 @@ if(systemCallNumber == 1) then
 		
 		i = i + 1;
 	endwhile;
+
+
+
 	
 	if(i == MAX_FILE_NUM) then
 		[ret] = -1;
 		[processTableEntry + 9] = 0;
+
+         multipush(R9);
+         R1 = RELEASE_LOCK;
+         R2 = KERN_LOCK;
+         call ACCESS_CONTROL;
+         multipop(R9);
+
+
 		SP = userSP;
 		ireturn;
 	endif;
 	
 	
-	[INODE_TABLE + i*16] = DATA;
-	[INODE_TABLE + i*16 + 1] = fileName;
-	[INODE_TABLE + i*16 + 2] = 0;
-	[INODE_TABLE + i*16 + 3] = [processTableEntry + 3];
-	[INODE_TABLE + i*16 + 4] = permission;
-	[INODE_TABLE + i*16 + 8] = -1;
-	[INODE_TABLE + i*16 + 9] = -1;
-	[INODE_TABLE + i*16 + 10] = -1;
-	[INODE_TABLE + i*16 + 11] = -1;
+
+    alias entry R6;
+	entry = INODE_TABLE + i*16;
 
 
+	[entry] = DATA;
+	[entry + 1] = fileName;
+	[entry + 2] = 0;
+	[entry + 3] = [processTableEntry + 3];
+	[entry + 4] = permission;
+	[entry + 8] = -1;
+	[entry + 9] = -1;
+	[entry + 10] = -1;
+	[entry + 11] = -1;
+
+
+	entry = ROOT_FILE + i*8;
 	
-	
-	[ROOT_FILE + i*8] = fileName;
-	[ROOT_FILE + i*8 + 1] = 0;
-	[ROOT_FILE + i*8 + 2] = DATA;
-	[ROOT_FILE + i*8 + 3] = [USER_TABLE + 2*[processTableEntry + 3]];
-	[ROOT_FILE + i*8 + 4] = permission;
+	[entry] = fileName;
+	[entry + 1] = 0;
+	[entry + 2] = DATA;
+	[entry + 3] = [USER_TABLE + 2*[processTableEntry + 3]];
+	[entry + 4] = permission;
 	
 
 
 	
 	[ret] = 0;
 	[processTableEntry + 9] = 0;
+
+
+    multipush(R9);
+    R1 = RELEASE_LOCK;
+    R2 = KERN_LOCK;
+    call ACCESS_CONTROL;
+    multipop(R9);
+
+
+
 	SP = userSP;
 	ireturn;
 	
@@ -124,6 +172,15 @@ if(systemCallNumber == 4) then
 	if(i == MAX_FILE_NUM) then
 		[ret] = 0;
 		[processTableEntry + 9] = 0;
+
+        multipush(R9);
+        R1 = RELEASE_LOCK;
+        R2 = KERN_LOCK;
+        call ACCESS_CONTROL;
+        multipop(R9);
+
+
+
 		SP = userSP;
 		ireturn;
 	endif;
@@ -131,6 +188,16 @@ if(systemCallNumber == 4) then
 	if([INODE_TABLE + i * 16] != DATA) then
 		[ret] = -1;
 		[processTableEntry + 9] = 0;
+
+
+        multipush(R9);
+        R1 = RELEASE_LOCK;
+        R2 = KERN_LOCK;
+        call ACCESS_CONTROL;
+        multipop(R9);
+
+
+
 		SP = userSP;
 		ireturn;
 	endif;
@@ -142,6 +209,14 @@ if(systemCallNumber == 4) then
 		if([INODE_TABLE + i*16 + 3] != 1 && [INODE_TABLE + i*16 + 3] != [processTableEntry + 3]) then
 			[ret] = -1;
 			[processTableEntry + 9] = 0;
+
+            multipush(R9);
+            R1 = RELEASE_LOCK;
+            R2 = KERN_LOCK;
+            call ACCESS_CONTROL;
+            multipop(R9);
+
+
 			SP = userSP;
 			ireturn;
 		endif;
@@ -152,7 +227,7 @@ if(systemCallNumber == 4) then
 	//Acquire Inode
 	multipush(R1,R2,R3,R4,R8,R9,R10);
 	R1 = 4;
-	R2 = [SYSTEM_STATUS_TABLE + 1];
+	R2 = [SYSTEM_STATUS_TABLE + 5*CORE + 1];
 	R3 = i;
 	call MOD_0;
 	multipop(R1,R2,R3,R4,R8,R9,R10);
@@ -161,7 +236,17 @@ if(systemCallNumber == 4) then
 	
 	if([FILE_STATUS_TABLE + i*4 + 1] != -1) then
 		[ret] = -2;
-		[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+		[processTableEntry + 9] = 0;
+
+
+        multipush(R9);
+        R1 = RELEASE_LOCK;
+        R2 = KERN_LOCK;
+        call ACCESS_CONTROL;
+        multipop(R9);
+
+         
+
 		SP = userSP;
 		ireturn;
 	endif;
@@ -213,7 +298,7 @@ if(systemCallNumber == 4) then
 	//Release Inode
 	multipush(R1,R2,R3,R4,R5,R6);
 	R1 = 5;
-	R2 = [SYSTEM_STATUS_TABLE + 1];
+	R2 = [SYSTEM_STATUS_TABLE + 5*CORE + 1];
 	R3 = i;
 	call MOD_0;
 	multipop(R1,R2,R3,R4,R5,R6);
@@ -222,6 +307,18 @@ if(systemCallNumber == 4) then
 	
 	[ret] = 0;
 	[processTableEntry + 9] = 0;
+
+
+    
+	multipush(R9);
+    R1 = RELEASE_LOCK;
+    R2 = KERN_LOCK;
+    call ACCESS_CONTROL;
+    multipop(R9);
+
+
+
+
 	SP = userSP;
 	ireturn;
 endif;

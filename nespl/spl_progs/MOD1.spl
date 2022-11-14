@@ -49,7 +49,7 @@ if(functionNum == 3)then
    alias i R4;
      i = 0;
 
-   if([PROCESS_TABLE + 16*[SYSTEM_STATUS_TABLE + 1] + 9] != 9)then
+   if([PROCESS_TABLE + 16*[SYSTEM_STATUS_TABLE + 5*CORE + 1 ] + 9] != 9)then
 
      
 
@@ -275,7 +275,7 @@ if(functionNum == 5)then
 
     i = 2;
 
-    while(i < MAX_PROC_NUM)do
+    while(i < 14)do
        if(i != currentPID && [PROCESS_TABLE + i*16 + 4] != TERMINATED && i!=15)then
                 //Calling exit process from proc manager module
 				multipush(R1,R2,R3);

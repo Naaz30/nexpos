@@ -5,6 +5,13 @@ SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1]*16) + 11] * 512 - 1;
 
 
 
+multipush(R1);
+R1 = ACQUIRE_KERN_LOCK;
+call ACCESS_CONTROL;
+multipop(R1);
+
+
+
 
 alias ptbr R5;
 ptbr = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE+1]*16 + 14];
@@ -42,9 +49,15 @@ if(syscall == 17)then
 
    if(i >= 8)then
 
+     multipush(R1,R5);
+     R1 = RELEASE_LOCK;
+     R2 = KERN_LOCK;
+     call ACCESS_CONTROL;
+     multipop(R1,R5);
+
      [[ptbr + 2*((userSP - 1)/512)] * 512 + ((userSP - 1)%512)] = -1;
-	   [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1]*16) + 9] = 0;
-	   SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1]*16) + 13];
+	   [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 5*CORE + 1]*16) + 9] = 0;
+	   SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 5*CORE + 1]*16) + 13];
 	   ireturn;
 
    endif;
@@ -56,7 +69,7 @@ if(syscall == 17)then
    multipush(R1,R2,R3,R4,R5,R6,R7);
 
    R1 = 6;
-   R2 = [SYSTEM_STATUS_TABLE + 1];
+   R2 = [SYSTEM_STATUS_TABLE + 5*CORE + 1];
    call MOD_0;
 
    multipop(R1,R2,R3,R4,R5,R6,R7);
@@ -67,16 +80,22 @@ if(syscall == 17)then
 
    if(semIndex == -1)then
 
+     multipush(R1,R5);
+     R1 = RELEASE_LOCK;
+     R2 = KERN_LOCK;
+     call ACCESS_CONTROL;
+     multipop(R1,R5);
+
      [[ptbr + 2*((userSP - 1)/512)] * 512 + ((userSP - 1)%512)] = -2;
-	   [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1]*16) + 9] = 0;
-	   SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1]*16) + 13];
+	   [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 5*CORE + 1]*16) + 9] = 0;
+	   SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 5*CORE + 1]*16) + 13];
 	   ireturn;
 
    endif;
 
 
    [perProcessTable + 2*i + 1] = semIndex;
-   [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1]*16) + 9] = 0;
+   [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 5*CORE + 1]*16) + 9] = 0;
    [[ptbr + 2*((userSP - 1)/512)] * 512 + ((userSP - 1)%512)] = i;
    
 
@@ -93,7 +112,7 @@ endif;
 if(syscall == 18)then
 
   alias perProcessTable R6;
-  perProcessTable = ([PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1]*16) + 11]*512 + 496);
+  perProcessTable = ([PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 5*CORE + 1]*16) + 11]*512 + 496);
 
   alias semID R5;
 
@@ -101,9 +120,16 @@ if(syscall == 18)then
 
   if(semID > 7 || semID < 0 || [perProcessTable + 2*semID] != 1)then
 
+     multipush(R1,R5);
+     R1 = RELEASE_LOCK;
+     R2 = KERN_LOCK;
+     call ACCESS_CONTROL;
+     multipop(R1,R5);
+
+
      [[ptbr + 2*((userSP - 1)/512)] * 512 + ((userSP - 1)%512)] = -1;
-	   [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1]*16) + 9] = 0;
-	   SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1]*16) + 13];
+	   [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 5*CORE + 1]*16) + 9] = 0;
+	   SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 5*CORE + 1]*16) + 13];
 	   ireturn;
 
   endif;
@@ -112,7 +138,7 @@ if(syscall == 18)then
   multipush(R1,R2,R3,R4,R5,R6,R7);
 
   R1 = 7;
-  R2 = [SYSTEM_STATUS_TABLE + 1];
+  R2 = [SYSTEM_STATUS_TABLE + 5*CORE + 1];
   R3 = [perProcessTable + 2*semID + 1];
   call MOD_0;
 
@@ -121,11 +147,23 @@ if(syscall == 18)then
 
   [perProcessTable + 2*semID] = -1;
 
-  [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1]*16) + 9] = 0;
+  [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 5*CORE + 1]*16) + 9] = 0;
 
   [[ptbr + 2*((userSP - 1)/512)] * 512 + ((userSP - 1)%512)] = 0;
 
 endif;
-SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1]*16) + 13];
+
+
+
+
+R1 = RELEASE_LOCK;
+R2 = KERN_LOCK;
+call ACCESS_CONTROL;
+
+
+
+
+
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 5*CORE + 1]*16) + 13];
 
 ireturn;

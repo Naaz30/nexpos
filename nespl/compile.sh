@@ -1,6 +1,8 @@
 #!/bin/bash
 ./spl ./spl_progs/OS.spl
 echo "OS Startup Compiled"
+./spl ./spl_progs/OS2.spl
+echo "OS Startup Sec Compiled"
 ./spl ./spl_progs/MOD7.spl
 echo "Boot Module Compiled"
 ./spl ./spl_progs/timer.spl
@@ -51,5 +53,7 @@ echo "Module 3 File Manager Compiled"
 echo "Module 4 Device Manager Compiled"
 ./spl ./spl_progs/MOD6.spl
 echo "Module 6 Compiled"
+./spl ./spl_progs/MOD8.spl
+echo "Module 8 Compiled"
 ./spl ./spl_progs/exhandler.spl
 echo "Exception Handler Compiled"

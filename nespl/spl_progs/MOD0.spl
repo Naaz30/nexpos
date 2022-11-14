@@ -18,8 +18,22 @@ if(functionNum == 1)then
         [PROCESS_TABLE + 16*currentPID + 4] = WAIT_BUFFER;
         [PROCESS_TABLE + 16*currentPID + 5] = bufferNumber;
 
+
+        multipush(R1,R2,R3,R4);
+        R1 = RELEASE_LOCK;
+        R2 = KERN_LOCK;
+        call ACCESS_CONTROL;
+        multipop(R1,R2,R3,R4);
+
+
         multipush(R1,R2,R3,R4);
         call MOD_5;
+        multipop(R1,R2,R3,R4);
+
+
+        multipush(R1,R2,R3,R4);
+        R1 = ACQUIRE_KERN_LOCK;
+        call ACCESS_CONTROL;
         multipop(R1,R2,R3,R4);
 
     endwhile; 
@@ -79,9 +93,23 @@ if( functionNum == 3)then
    while([DISK_STATUS_TABLE ] == 1)do
 
        [PROCESS_TABLE + currentPID*16 + 4] = WAIT_DISK;
-       multipush(R0,R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R13,R14,R15);
+
+       multipush(R1,R2,R3,R4);
+       R1 = RELEASE_LOCK;
+       R2 = KERN_LOCK;
+       call ACCESS_CONTROL;
+       multipop(R1,R2,R3,R4);
+
+
+       multipush(R1,R2,R3,R4);
        call MOD_5;
-	   multipop(R0,R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R13,R14,R15);
+	   multipop(R1,R2,R3,R4);
+
+
+       multipush(R1,R2,R3,R4);
+       R1 = ACQUIRE_KERN_LOCK;
+       call ACCESS_CONTROL;
+       multipop(R1,R2,R3,R4);
 
    endwhile;
 
@@ -180,9 +208,22 @@ endif;
 if( (functionNum == 8) ) then
 	while( [TERMINAL_STATUS_TABLE] == 1) do
 		[PROCESS_TABLE + currentPID*16 + 4] = WAIT_TERMINAL;
-		multipush(R0,R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R13,R14,R15);
+
+        multipush(R1,R2,R3,R4);
+        R1 = RELEASE_LOCK;
+        R2 = KERN_LOCK;
+        call ACCESS_CONTROL;
+        multipop(R1,R2,R3,R4);
+
+		multipush(R1,R2,R3,R4);
 		call MOD_5;
-		multipop(R0,R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12,R13,R14,R15);
+		multipop(R1,R2,R3,R4);
+
+        multipush(R1,R2,R3,R4);
+        R1 = ACQUIRE_KERN_LOCK;
+        call ACCESS_CONTROL;
+        multipop(R1,R2,R3,R4);
+
 	endwhile;
 
 	[TERMINAL_STATUS_TABLE] = 1;
@@ -232,8 +273,22 @@ if(functionNum == 4)then
     [PROCESS_TABLE + (currentPID*16) + 4] = WAIT_FILE;
 	[PROCESS_TABLE + (currentPID*16) + 5] = inodeIndex;
 
+    
+    multipush(R1,R2,R3,R4);
+    R1 = RELEASE_LOCK;
+    R2 = KERN_LOCK;
+    call ACCESS_CONTROL;
+    multipop(R1,R2,R3,R4);
+
+
     multipush(R1,R2,R3,R4);
     call MOD_5;
+    multipop(R1,R2,R3,R4);
+
+
+    multipush(R1,R2,R3,R4);
+    R1 = ACQUIRE_KERN_LOCK;
+    call ACCESS_CONTROL;
     multipop(R1,R2,R3,R4);
 
  endwhile;

@@ -1,0 +1,7 @@
+PTBR = PAGE_TABLE_BASE + 14*20;
+PTLR = 10;
+
+
+[83*512] = [69*512 + 1];
+SP = 8*512;
+ireturn;

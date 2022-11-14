@@ -1,5 +1,5 @@
 alias processTableEntry R2;
-processTableEntry = PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16);
+processTableEntry = PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 5*CORE + 1] * 16);
 
 
 alias ptbr R4;
@@ -13,6 +13,12 @@ userSP = SP;
 
 [processTableEntry + 13] = SP;
 SP = [processTableEntry + 11] * 512 - 1;
+
+
+multipush(R2,R3,R4);
+R1 = ACQUIRE_KERN_LOCK;
+call ACCESS_CONTROL;
+multipop(R2,R3,R4);
 
 
 
@@ -53,7 +59,15 @@ if(systemCallNumber == 2) then
 	if(i == 8) then
 		[ret] = -3;
 		[processTableEntry + 9] = 0;
-		SP = [processTableEntry + 13];
+
+        multipush(R3);
+        R1 = RELEASE_LOCK;
+        R2 = KERN_LOCK;
+        call ACCESS_CONTROL;
+        multipop(R3);
+
+
+		SP = userSP;
 		ireturn;
 	endif;
 	
@@ -61,7 +75,7 @@ if(systemCallNumber == 2) then
 	//Call open
 	multipush(R1,R2,R3,R4,R5,R6,R7);
 	R1 = 3;
-	R2 = [SYSTEM_STATUS_TABLE + 1];
+	R2 = [SYSTEM_STATUS_TABLE + 5*CORE + 1];
 	R3 = fileName;
 	call MOD_3;
 	multipop(R1,R2,R3,R4,R5,R6,R7);
@@ -72,7 +86,15 @@ if(systemCallNumber == 2) then
 	if(R0 < 0) then
 		[ret] = R0;
 		[processTableEntry + 9] = 0;
-		SP = [processTableEntry + 13];
+
+		multipush(R3);
+        R1 = RELEASE_LOCK;
+        R2 = KERN_LOCK;
+        call ACCESS_CONTROL;
+        multipop(R3);
+
+
+		SP = userSP;
 		ireturn;
 	endif;
 	
@@ -85,7 +107,16 @@ if(systemCallNumber == 2) then
 	
 	[ret] = i;
 	[processTableEntry + 9] = 0;
-	SP = [processTableEntry + 13];
+
+
+	multipush(R3);
+    R1 = RELEASE_LOCK;
+    R2 = KERN_LOCK;
+    call ACCESS_CONTROL;
+    multipop(R3);
+
+
+	SP = userSP;
 	ireturn;
 	
 	
@@ -116,7 +147,15 @@ if(systemCallNumber == 3 || systemCallNumber == 6) then
 	if(fileDescriptor < 0 || fileDescriptor > 7) then
 		[ret] = -1;
 		[processTableEntry + 9] = 0;
-		SP = [processTableEntry + 13];
+
+		multipush(R3);
+        R1 = RELEASE_LOCK;
+        R2 = KERN_LOCK;
+        call ACCESS_CONTROL;
+        multipop(R3);
+
+
+		SP = userSP;
 		ireturn;
 	endif;
 	
@@ -127,7 +166,15 @@ if(systemCallNumber == 3 || systemCallNumber == 6) then
 	if([([processTableEntry + 11] * 512) + 496 + 2*fileDescriptor] == -1 || [([processTableEntry + 11] * 512) + 496 + 2*fileDescriptor] != FILE) then
 		[ret] = -1;
 		[processTableEntry + 9] = 0;
-		SP = [processTableEntry + 13];
+
+		multipush(R3);
+        R1 = RELEASE_LOCK;
+        R2 = KERN_LOCK;
+        call ACCESS_CONTROL;
+        multipop(R3);
+
+
+		SP = userSP;
 		ireturn;
 	endif;
 	
@@ -148,7 +195,7 @@ if(systemCallNumber == 3 || systemCallNumber == 6) then
 		//acquire inode
 		multipush(R1,R2,R3,R4,R5,R6,R7,R8,R9);
 		R1 = 4;
-		R2 = [SYSTEM_STATUS_TABLE + 1];
+		R2 = [SYSTEM_STATUS_TABLE + 5*CORE + 1];
 		R3 = inodeIndex;
 		call MOD_0;
 		multipop(R1,R2,R3,R4,R5,R6,R7,R8,R9);
@@ -157,7 +204,15 @@ if(systemCallNumber == 3 || systemCallNumber == 6) then
 		if(R0 == -1) then
 			[ret] = -1;
 			[processTableEntry + 9] = 0;
-			SP = [processTableEntry + 13];
+
+			multipush(R3);
+            R1 = RELEASE_LOCK;
+            R2 = KERN_LOCK;
+            call ACCESS_CONTROL;
+            multipop(R3);
+
+
+		    SP = userSP;
 			ireturn;
 		endif;
 
@@ -175,16 +230,24 @@ if(systemCallNumber == 3 || systemCallNumber == 6) then
 		if([LSEEK] + offset < 0) then
 		
 			//release inode
-			multipush(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11);
+			multipush(R1,R2,R3,R4,R5,R6,R7,R8,R9);
 			R1 = 5;
-			R2 = [SYSTEM_STATUS_TABLE + 1];
+			R2 = [SYSTEM_STATUS_TABLE + 5*CORE + 1];
 			R3 = inodeIndex;
 			call MOD_0;
-			multipop(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11);
+			multipop(R1,R2,R3,R4,R5,R6,R7,R8,R9);
 			
 			[ret] = -2;
 			[processTableEntry + 9] = 0;
-			SP = [processTableEntry + 13];
+
+			multipush(R3);
+            R1 = RELEASE_LOCK;
+            R2 = KERN_LOCK;
+            call ACCESS_CONTROL;
+            multipop(R3);
+
+
+		    SP = userSP;
 			ireturn;
 		endif;
 	
@@ -203,7 +266,7 @@ if(systemCallNumber == 3 || systemCallNumber == 6) then
 		//release inode
 		multipush(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11);
 		R1 = 5;
-		R2 = [SYSTEM_STATUS_TABLE + 1];
+		R2 = [SYSTEM_STATUS_TABLE + 5*CORE + 1];
 		R3 = inodeIndex;
 		call MOD_0;
 		multipop(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11);
@@ -214,7 +277,7 @@ if(systemCallNumber == 3 || systemCallNumber == 6) then
 		//close file manager module
 		multipush(R1,R2,R3,R4,R5,R6,R7,R8);
 		R1 = 4;
-		R2 = [SYSTEM_STATUS_TABLE + 1];
+		R2 = [SYSTEM_STATUS_TABLE + 5*CORE + 1];
 		R3 = openFileTableIndex;
 		call MOD_3;
 		multipop(R1,R2,R3,R4,R5,R6,R7,R8);
@@ -230,9 +293,19 @@ if(systemCallNumber == 3 || systemCallNumber == 6) then
 	
 	[ret] = 0;
 	[processTableEntry + 9] = 0;
-	SP = [processTableEntry + 13];
+
+
+	multipush(R3);
+    R1 = RELEASE_LOCK;
+    R2 = KERN_LOCK;
+    call ACCESS_CONTROL;
+    multipop(R3);
+
+
+	SP = userSP;
+
+
 	ireturn;
 	
 endif;
-
 

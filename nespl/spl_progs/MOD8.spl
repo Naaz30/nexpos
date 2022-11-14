@@ -1,0 +1,80 @@
+alias functionNum R1;
+
+
+
+
+
+//Acquire Kernel
+if(functionNum == ACQUIRE_KERN_LOCK)then
+    
+    if(CORE == SECONDARY_CORE)then
+        
+        //If Paging or Logout is set then the current process should be set to READY and scheduler should be called
+        if([SYSTEM_STATUS_TABLE + 5] == 1 || [SYSTEM_STATUS_TABLE + 7] == 1)then
+             
+            [PROCESS_TABLE + 16*[SYSTEM_STATUS_TABLE+6] + 4] = READY;
+			multipush(R1);
+			call CONTEXT_SWITCH;
+			multipop(R1);
+
+        endif;
+
+    endif;
+
+
+    //hardware solution for atomicity
+    while(tsl(KERN_LOCK) == 1) do
+		continue;
+	endwhile;
+
+	return;
+
+
+endif;
+
+
+
+
+
+
+
+//Acquire Scheduler Lock
+if(functionNum == ACQUIRE_SCHED_LOCK)then
+
+	while(tsl(SCHED_LOCK) == 1) do
+		continue;
+	endwhile;
+
+	return;
+
+endif;
+
+
+
+
+
+
+//Acquire G Lock
+if(functionNum == ACQUIRE_GLOCK)then
+
+    while( tsl(GLOCK) == 1) do
+		continue;
+	endwhile;
+	
+	return;
+
+endif;
+
+
+
+
+
+
+//Release Lock
+if(functionNum == RELEASE_LOCK)then
+
+	alias lock R2;
+	[lock] = 0;
+	return;
+
+endif;
