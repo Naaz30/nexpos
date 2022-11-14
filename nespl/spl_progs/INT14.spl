@@ -1,176 +1,260 @@
-
-
-
 [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 5*CORE + 1] * 16) + 13] = SP;
 SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 5*CORE + 1] * 16) + 11] * 512 - 1;
 
 
-//acquire kernel lock
-R1 = 1;
-call MOD_8;
 
-alias userSp R1;
-alias syscallNum R2;
-alias ptbr R3;
+
+
+R1 = ACQUIRE_KERN_LOCK;
+call ACCESS_CONTROL;
+
+
+
+
+
 alias currentPID R4;
-
 currentPID = [SYSTEM_STATUS_TABLE + 5*CORE + 1];
 
+
+
+alias ptbr R3;
 ptbr = [PROCESS_TABLE + (currentPID * 16) + 14];
-userSp = [PROCESS_TABLE + (currentPID * 16) + 13];
-syscallNum = [[ptbr + 2 * ((userSp - 5)/512)] * 512 + ((userSp - 5)%512)];
 
 
 
-//semlock
+alias userSP R1;
+userSP = [PROCESS_TABLE + (currentPID * 16) + 13];
+
+
+
+alias syscallNum R2;
+syscallNum = [[ptbr + 2 * ((userSP - 5)/512)] * 512 + ((userSP - 5)%512)];
+
+
+
+//Sem Lock
 if(syscallNum == 19) then
 
 	[PROCESS_TABLE + (currentPID * 16) + 9] = 19;
 	
 	alias userAreaPage R5;
-	alias iter R6;
 	alias semDesc R7;
 	
 	userAreaPage = [PROCESS_TABLE + (currentPID * 16) + 11];
 	
 	
-	semDesc = [[ptbr + 2 * ((userSp - 4)/512)] * 512 + ((userSp - 4)%512)];
+	semDesc = [[ptbr + 2 * ((userSP - 4)/512)] * 512 + ((userSP - 4)%512)];
 	
 	if( semDesc > 7 || semDesc < 0 || [(userAreaPage + 1) * 512 - 16 + 2*semDesc] == - 1) then
-		[[ptbr + 2 * ((userSp - 1)/512)] * 512 + ((userSp - 1)%512)] = -1;
+
+		[[ptbr + 2 * ((userSP - 1)/512)] * 512 + ((userSP - 1)%512)] = -1;
 		[PROCESS_TABLE + (currentPID* 16) + 9] = 0;
 		
 		multipush(R1);
-		//release kernel lock
-		R1 = 4;
-		R2 = ACCESS_LOCK_TABLE;
-		call MOD_8;
+		R1 = RELEASE_LOCK;
+        R2 = KERN_LOCK;
+        call ACCESS_CONTROL;
 		multipop(R1);
 		
-		SP = userSp;
+		SP = userSP;
 		ireturn;
+
 	endif;
 	
 	
 	while([SEMAPHORE_TABLE + ([(userAreaPage + 1) * 512 - 16 + 2*semDesc + 1] * 4)] != -1 && [SEMAPHORE_TABLE + ([(userAreaPage + 1) * 512 - 16 + 2*semDesc + 1] * 4)] != currentPID) do
+
+
 		[PROCESS_TABLE + (currentPID * 16) + 4] = WAIT_SEMAPHORE;
 		[PROCESS_TABLE + (currentPID * 16) + 5] = [((userAreaPage) * 512) + 496 + 2*semDesc + 1];
 		
-		//release kernel lock
+		
 		multipush(R0,R1,R2,R3,R4,R5,R6,R7);
-		R1 = 4;
-		R2 = ACCESS_LOCK_TABLE;
-		call MOD_8;
+		R1 = RELEASE_LOCK;
+        R2 = KERN_LOCK;
+        call ACCESS_CONTROL;
 		multipop(R0,R1,R2,R3,R4,R5,R6,R7);
+
+
+
 		
 		multipush(R0,R1,R2,R3,R4,R5,R6,R7);
 		call MOD_5;
 		multipop(R0,R1,R2,R3,R4,R5,R6,R7);
+
+
 		
-		//acquire kernel lock
+		
 		multipush(R0,R1,R2,R3,R4,R5,R6,R7);
-		R1 = 1;
-		call MOD_8;
+		R1 = ACQUIRE_KERN_LOCK;
+        call ACCESS_CONTROL;
 		multipop(R0,R1,R2,R3,R4,R5,R6,R7);
+
+
 	endwhile;
 	
+
+
+
 	
 	[SEMAPHORE_TABLE + ([(userAreaPage + 1) * 512 - 16 + 2*semDesc + 1] * 4)] = currentPID;
+
+
+
 	
-	[[ptbr + 2 * ((userSp - 1)/512)] * 512 + ((userSp - 1)%512)] = 0;
+	[[ptbr + 2 * ((userSP - 1)/512)] * 512 + ((userSP - 1)%512)] = 0;
+
+
+
 	[PROCESS_TABLE + (currentPID* 16) + 9] = 0;
+
+
+
 	multipush(R1);
-	//release kernel lock
-	R1 = 4;
-	R2 = ACCESS_LOCK_TABLE;
-	call MOD_8;
+	R1 = RELEASE_LOCK;
+    R2 = KERN_LOCK;
+    call ACCESS_CONTROL;
 	multipop(R1);
+
+
 		
-	SP = userSp;
+	SP = userSP;
 	ireturn;
+
+
 	
 endif;
 
 
-//semunlock
+
+
+
+
+
+
+
+//Sem Unlock
 if(syscallNum == 20) then
 
 	[PROCESS_TABLE + (currentPID * 16) + 9] = 20;
+
 	
 	alias userAreaPage R5;
-	alias iter R6;
+	alias i R6;
 	alias semDesc R7;
+
+
+
 	
 	userAreaPage = [PROCESS_TABLE + (currentPID * 16) + 11];
 	
 	
-	semDesc = [[ptbr + 2 * ((userSp - 4)/512)] * 512 + ((userSp - 4)%512)];
+	semDesc = [[ptbr + 2 * ((userSP - 4)/512)] * 512 + ((userSP - 4)%512)];
+
+
+
 	
 	if( semDesc > 7 || semDesc < 0 || [(userAreaPage + 1) * 512 - 16 + 2*semDesc] == - 1) then
-		[[ptbr + 2 * ((userSp - 1)/512)] * 512 + ((userSp - 1)%512)] = -1;
+
+
+		[[ptbr + 2 * ((userSP - 1)/512)] * 512 + ((userSP - 1)%512)] = -1;
 		[PROCESS_TABLE + (currentPID* 16) + 9] = 0;
+
+
 		multipush(R1);
-		//release kernel lock
-		R1 = 4;
-		R2 = ACCESS_LOCK_TABLE;
-		call MOD_8;
+		R1 = RELEASE_LOCK;
+        R2 = KERN_LOCK;
+        call ACCESS_CONTROL;
 		multipop(R1);
+
+
 		
-		SP = userSp;
+		SP = userSP;
 		ireturn;
+
+
+
 	endif;
+
+
+
+
 	
 	if([SEMAPHORE_TABLE + ([(userAreaPage + 1) * 512 - 16 + 2*semDesc + 1] * 4)] != -1) then
+
+
+
 		if([SEMAPHORE_TABLE + ([(userAreaPage + 1) * 512 - 16 + 2*semDesc + 1] * 4)] != currentPID) then
-			[[ptbr + 2 * ((userSp - 1)/512)] * 512 + ((userSp - 1)%512)] = -2;
+
+
+			[[ptbr + 2 * ((userSP - 1)/512)] * 512 + ((userSP - 1)%512)] = -2;
 			[PROCESS_TABLE + (currentPID* 16) + 9] = 0;
+
+
 			multipush(R1);
-			//release kernel lock
-			R1 = 4;
-			R2 = ACCESS_LOCK_TABLE;
-			call MOD_8;
+			R1 = RELEASE_LOCK;
+            R2 = KERN_LOCK;
+            call ACCESS_CONTROL;
 			multipop(R1);
 		
-			SP = userSp;
+			SP = userSP;
 			ireturn;
+
+
 		endif;
 		
 		
 		[SEMAPHORE_TABLE + ([(userAreaPage + 1) * 512 - 16 + 2*semDesc + 1] * 4)] = -1;
+
+
 		
-		iter = 0;
-		while(iter < 16) do
-			if([PROCESS_TABLE + iter*16 + 4] == WAIT_SEMAPHORE && [PROCESS_TABLE + iter*16 + 5] == [(userAreaPage) * 512 + 496 + 2*semDesc + 1]) then
-				[PROCESS_TABLE + iter*16 + 4] = READY;
+		i = 0;
+		while(i < 16) do
+			if([PROCESS_TABLE + i*16 + 4] == WAIT_SEMAPHORE && [PROCESS_TABLE + i*16 + 5] == [(userAreaPage) * 512 + 496 + 2*semDesc + 1]) then
+				[PROCESS_TABLE + i*16 + 4] = READY;
 			endif;
-			iter = iter + 1;
+			i = i + 1;
 		endwhile;
+
+
 		
 	endif;
+
+
+
 	
-	[[ptbr + 2 * ((userSp - 1)/512)] * 512 + ((userSp - 1)%512)] = 0;
+	[[ptbr + 2 * ((userSP - 1)/512)] * 512 + ((userSP - 1)%512)] = 0;
+
+
 	[PROCESS_TABLE + (currentPID * 16) + 9] = 0;
+
+
 	multipush(R1);
-	//release kernel lock
-	R1 = 4;
-	R2 = ACCESS_LOCK_TABLE;
-	call MOD_8;
+	R1 = RELEASE_LOCK;
+    R2 = KERN_LOCK;
+    call ACCESS_CONTROL;
 	multipop(R1);
+
+
 		
-	SP = userSp;
+	SP = userSP;
 	ireturn;
 	
+
 	
 endif;
 
 
 
+
+
 multipush(R1);
-//release kernel lock
-R1 = 4;
-R2 = ACCESS_LOCK_TABLE;
-call MOD_8;
+R1 = RELEASE_LOCK;
+R2 = KERN_LOCK;
+call ACCESS_CONTROL;
 multipop(R1);
+
+
 		
-SP = userSp;
+SP = userSP;
 ireturn;

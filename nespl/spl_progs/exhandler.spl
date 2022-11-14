@@ -1,7 +1,16 @@
 [PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 5*CORE + 1] * 16) + 13] = SP;
 SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 5*CORE + 1] * 16) + 11] * 512  - 1 ;
+
+
+
 backup;
+
+
+
 multipush(EIP);
+
+
+
 alias userSP R1;
 
 alias lastStackPageNum R2;
@@ -14,11 +23,14 @@ lastStackPageNum = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 5*CORE + 1]*16)+ 15]
 alias ptbr R3; 
 ptbr = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 5*CORE + 1] * 16) + 14];
 
+
+
   
 multipush(R1,R2,R3,R4,R5,R6);
 R1 = ACQUIRE_KERN_LOCK;
 call ACCESS_CONTROL;
 multipop(R1,R2,R3,R4,R5,R6);
+
 
 
 
@@ -36,6 +48,8 @@ if(EC!=0 || userSP==lastStackPageNum) then
 		print "Stack Oveflow";
 		print EIP;
 	endif;
+
+
 	
 	if(EC == 1) then
 		print "INSTRUCTION ILLEGAL";
@@ -51,10 +65,12 @@ if(EC!=0 || userSP==lastStackPageNum) then
 	
 	print "-------";
 
+
+
+
     // Call Exit Process
     multipush(R0,R1,R2,R3,R4,R5);
-    R1 = EXIT_PROCESS; // exit function number
-    // process id
+    R1 = EXIT_PROCESS; 
     R2 = [SYSTEM_STATUS_TABLE + 5*CORE + 1]; 
     call PROCESS_MANAGER; // MOD 1 
     multipop(R0,R1,R2,R3,R4,R5);
@@ -68,7 +84,9 @@ if(EC!=0 || userSP==lastStackPageNum) then
     multipop(R1,R2,R3,R4,R5,R6);
 
 
-    // Call Scheduler
+
+
+    
     call SCHEDULER;
   
 
@@ -76,52 +94,47 @@ else
 
 
 
-   
-
-
-
-
-    // print "Page Fault";
-
-    // Set the MODE FLAG to -1 in the process table of the current process, indicating in exception handler.
     [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 5*CORE + 1]*16)+ 9] = -1;
     
-    // if the page that caused the exception is a code page
-    // code pages are 4,5,6,7
+   
     if(EPN == 4 || EPN == 5 || EPN == 6 || EPN == 7) then
-        // get the code block number to be loaded from the disk map table. For this block, invoke the Get Code Page function present in the memory manager module. 
+        
         alias codeBlockNumber R4;
         codeBlockNumber = [DISK_MAP_TABLE + [SYSTEM_STATUS_TABLE + 5*CORE + 1] *10+ EPN];
+
         multipush(R1,R2,R3,R4,R5,EPN);
-        // Arguements are Block Number	
         R1 = GET_CODE_PAGE;
         R2 = codeBlockNumber;
         call MEMORY_MANAGER; // MOD 2
         multipop(R1,R2,R3,R4,R5,EPN);
 
-        // Update the page table entry for this code page,set the page number 
-        // to memory page obtained fromGet Code Pagefunction and 
-        // auxiliary information to "1100".
+        
         [ptbr + EPN*2] = R0;
         [ptbr + EPN*2 + 1] = "1100";
 
     endif;
 
-    // If page fault is caused due to a heap page,
-    // heap pages are 2,3
+    
+
+
+
+
+
     if(EPN == 2 || EPN == 3) then
 
         //Heap
         multipush(R1,R2,R3,R4,R5,R6);
-        R1 = GET_FREE_PAGE; // get free page function number
-        call MEMORY_MANAGER; // Memory Manager Module
+        R1 = GET_FREE_PAGE; 
+        call MEMORY_MANAGER; 
         multipop(R1,R2,R3,R4,R5,R6);
         [ptbr+4] = R0;
         [ptbr+5] = "0110";
 
+
+
         multipush(R1,R2,R3,R4,R5,R6);
-        R1 = GET_FREE_PAGE; // get free page function number
-        call MEMORY_MANAGER; // Memory Manager Module
+        R1 = GET_FREE_PAGE; 
+        call MEMORY_MANAGER; 
         multipop(R1,R2,R3,R4,R5,R6);
         [ptbr+6] = R0;
         [ptbr+7] = "0110";
@@ -148,13 +161,13 @@ endif;
 
 
 
-// Reset the MODE FLAG to 0. Pop EIP from the stack and restore the register context.
+
 [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 5*CORE + 1]*16)+ 9] = 0;
 multipop(EIP);
 restore;
-// Change to the user stack.
+
+
 SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 5*CORE + 1] * 16) + 13];
-//  Increment the stack pointer, store the EIP value onto the location pointed to by SP and return to the user mode. (Address translations needs to be done on the SP to find the stack address to which EIP is to be stored)
 SP = SP + 1;
 
 
@@ -163,16 +176,9 @@ alias offset R5;
 alias PhysicalAddr R6;
 
 
-// physicalPageNum = ptbr + 2*(SP/512);
-// offset = (SP%512);
-// PhysicalAddr = [physicalPageNum]*512+offset;
-// [PhysicalAddr] = EIP;
 
 
 [[[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 5*CORE + 1] * 16) + 14] + 2*((SP)/512)] * 512 + ((SP)%512)] = EIP;
-
-
-// Return to the user mode.
 
 
 

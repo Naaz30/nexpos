@@ -1,88 +1,108 @@
-//SETTING MODE FLAG FIELD which indicates if execution is in user mode, exception handler or system call.
-
-
 alias currentPID R12;
 currentPID = [SYSTEM_STATUS_TABLE + 5*CORE + 1];
 
+
+
 [PROCESS_TABLE + (currentPID * 16) + 9] = 7;
 
-alias userSp R1;
-userSp = SP;
+
+
+alias userSP R1;
+userSP = SP;
+
+
 
 [PROCESS_TABLE + (currentPID*16) + 13] = SP;
 SP = [PROCESS_TABLE + (currentPID* 16) + 11] * 512 - 1;
 
-//acquire kernel lock
+
+
+
+
 multipush(R1,R12);
-R1 = 1;
-call MOD_8;
+R1 = ACQUIRE_KERN_LOCK;
+call ACCESS_CONTROL;
 multipop(R1,R12);
+
+
+
 
 alias physicalPageNum R2;
 alias offset R3;
 alias fileDescPhysicalAddr R4;
 
-physicalPageNum = [PTBR + 2 * ((userSp - 4)/512)];
-offset = (userSp - 4)%512;
+
+
+physicalPageNum = [PTBR + 2 * ((userSP - 4)/512)];
+offset = (userSP - 4)%512;
 fileDescPhysicalAddr = (physicalPageNum * 512) + offset;
+
+
+
 
 alias fileDescriptor R5;
 fileDescriptor = [fileDescPhysicalAddr];
 
-alias physicalAddrRetVal R6;
-physicalAddrRetVal = ([PTBR + 2* ((userSp - 1) / 512)] * 512) + ((userSp - 1) % 512);
+
+
+
+alias ret R6;
+ret = ([PTBR + 2* ((userSP - 1) / 512)] * 512) + ((userSP - 1) % 512);
+
+
 
 alias word R7;
-word = [([PTBR + 2* ((userSp - 3) / 512)] * 512) + ((userSp - 3) % 512)];
+word = [([PTBR + 2* ((userSP - 3) / 512)] * 512) + ((userSP - 3) % 512)];
 
 
 if(fileDescriptor != -1)
 then
 	
-	//check if file descriptor is valid
+	
 	if(fileDescriptor < 0 || fileDescriptor > 7) then
-		[physicalAddrRetVal] = -1;
+		[ret] = -1;
 		[PROCESS_TABLE + (currentPID * 16) + 9] = 0;
 		
 		multipush(R1);
-		//release kernel lock
-		R1 = 4;
-		R2 = ACCESS_LOCK_TABLE;
-		call MOD_8;
+		R1 = RELEASE_LOCK;
+        R2 = KERN_LOCK;
+        call ACCESS_CONTROL;
 		multipop(R1);
 		
-		SP = userSp;
+		SP = userSP;
 		ireturn;
 	endif;
 	
-	alias per_process_entry R8;
+	alias perProcessEntry R8;
 	
-	per_process_entry = [PROCESS_TABLE + currentPID*16 + 11] * 512 + 496 + 2*fileDescriptor;
+	perProcessEntry = [PROCESS_TABLE + currentPID*16 + 11] * 512 + 496 + 2*fileDescriptor;
 	
 
-	//check if per-process resource table is valid
-	if([per_process_entry] != FILE) then
 	
-		[physicalAddrRetVal] = -1;
+	if([perProcessEntry] != FILE) then
+	
+		[ret] = -1;
 		[PROCESS_TABLE + (currentPID * 16) + 9] = 0;
 		
 		multipush(R1);
-		//release kernel lock
-		R1 = 4;
-		R2 = ACCESS_LOCK_TABLE;
-		call MOD_8;
+		R1 = RELEASE_LOCK;
+        R2 = KERN_LOCK;
+        call ACCESS_CONTROL;
 		multipop(R1);
 		
-		SP = userSp;
+		SP = userSP;
 		ireturn;
 	endif;
 	
+
 	
-	alias open_ft_index R9;
-	alias inode_index R10;
+	alias openFileTableIndex R9;
+	alias inodeIndex R10;
+
+
 	
-	open_ft_index = [per_process_entry + 1];
-	inode_index = [OPEN_FILE_TABLE + open_ft_index*4];
+	openFileTableIndex = [perProcessEntry + 1];
+	inodeIndex = [OPEN_FILE_TABLE + openFileTableIndex*4];
 	
 	
 	
@@ -90,101 +110,107 @@ then
 	multipush(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R12);
 	R1 = 4;
 	R2 = currentPID;
-	R3 = inode_index;
+	R3 = inodeIndex;
 	call MOD_0;
 	multipop(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R12);
+
+
 	
-	//check if inode was acquired
+	
 	if(R0 == -1) then
-		[physicalAddrRetVal] = -1;
+		[ret] = -1;
 		[PROCESS_TABLE + (currentPID * 16) + 9] = 0;
 		
 		multipush(R1);
-		//release kernel lock
-		R1 = 4;
-		R2 = ACCESS_LOCK_TABLE;
-		call MOD_8;
+		R1 = RELEASE_LOCK;
+        R2 = KERN_LOCK;
+        call ACCESS_CONTROL;
 		multipop(R1);
 		
-		SP = userSp;
+		SP = userSP;
 		ireturn;
 	endif;
+
+
 	
-	alias lseek R11;
-	lseek = [OPEN_FILE_TABLE + open_ft_index*4 + 2];
+	alias LSEEK R11;
+	LSEEK = [OPEN_FILE_TABLE + openFileTableIndex*4 + 2];
 	
 
 	
 	
-	if(inode_index == INODE_ROOT) then
-		//lseek is at end of file
-		if(lseek >= 480) then
+	if(inodeIndex == INODE_ROOT) then
+		
+		if(LSEEK >= 480) then
 			
 			
 			//release inode
 			multipush(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12);
 			R1 = 5;
 			R2 = currentPID;
-			R3 = inode_index;
+			R3 = inodeIndex;
 			call MOD_0;
 			multipop(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12);
 			
-			[physicalAddrRetVal] = -2;
+			[ret] = -2;
 			[PROCESS_TABLE + (currentPID * 16) + 9] = 0;
 			
 			multipush(R1);
-			//release kernel lock
-			R1 = 4;
-			R2 = ACCESS_LOCK_TABLE;
-			call MOD_8;
+			R1 = RELEASE_LOCK;
+            R2 = KERN_LOCK;
+            call ACCESS_CONTROL;
 			multipop(R1);
 		
-			SP = userSp;
+			SP = userSP;
 			ireturn;
 			
 		else
-			//print("rootval");
-			//print [ROOT_FILE + lseek];
-			[[[PROCESS_TABLE + currentPID*16 + 14] + 2 * (word/512)] * 512 + (word%512)] = [ROOT_FILE + lseek];
-			[OPEN_FILE_TABLE + open_ft_index*4 + 2] = [OPEN_FILE_TABLE + open_ft_index*4 + 2] + 1;
+			[[[PROCESS_TABLE + currentPID*16 + 14] + 2 * (word/512)] * 512 + (word%512)] = [ROOT_FILE + LSEEK];
+			[OPEN_FILE_TABLE + openFileTableIndex*4 + 2] = [OPEN_FILE_TABLE + openFileTableIndex*4 + 2] + 1;
 		endif;
 	
 	else
-		//if lseek greater than file size
-		if(lseek >= [INODE_TABLE + inode_index*16 + 2]) then
+		
+		if(LSEEK >= [INODE_TABLE + inodeIndex*16 + 2]) then
+
+
 			//release inode
 			multipush(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12);
 			R1 = 5;
 			R2 = currentPID;
-			R3 = inode_index;
+			R3 = inodeIndex;
 			call MOD_0;
 			multipop(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12);
 			
-			[physicalAddrRetVal] = -2;
+			[ret] = -2;
 			[PROCESS_TABLE + (currentPID * 16) + 9] = 0;
 			
 			multipush(R1);
-			//release kernel lock
-			R1 = 4;
-			R2 = ACCESS_LOCK_TABLE;
-			call MOD_8;
+			R1 = RELEASE_LOCK;
+            R2 = KERN_LOCK;
+            call ACCESS_CONTROL;
 			multipop(R1);
 		
-			SP = userSp;
+			SP = userSP;
 			ireturn;
+
+
 		endif;
 		
-		//buffered read
+
+		//Buffered Read
 		multipush(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12);
 		R1 = 2;
 		R2 = currentPID;
-		R3 = [INODE_TABLE + inode_index* 16 + 8 + lseek/512];
-		R4 = lseek%512;
+		R3 = [INODE_TABLE + inodeIndex* 16 + 8 + LSEEK/512];
+		R4 = LSEEK%512;
 		R5 = word;
 		call MOD_3;
 		multipop(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12);
+
+
 		
-		[OPEN_FILE_TABLE + open_ft_index*4 + 2] = [OPEN_FILE_TABLE + open_ft_index*4 + 2] + 1;
+		[OPEN_FILE_TABLE + openFileTableIndex*4 + 2] = [OPEN_FILE_TABLE + openFileTableIndex*4 + 2] + 1;
 	endif;
 	
 	
@@ -193,7 +219,7 @@ then
 	multipush(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12);
 	R1 = 5;
 	R2 = currentPID;
-	R3 = inode_index;
+	R3 = inodeIndex;
 	call MOD_0;
 	multipop(R1,R2,R3,R4,R5,R6,R7,R8,R9,R10,R11,R12);
 	
@@ -201,9 +227,8 @@ then
 	
 else
 	
-
+    //Terminal Read
 	multipush(R1,R2,R3,R4,R5,R6,R7,R12);
-	//Function number of terminal read
 	R1 = 4;
 	R2 = currentPID;
 	R3 = word;
@@ -213,19 +238,21 @@ else
 	
 endif;
 
-[physicalAddrRetVal] = 0;
+
+[ret] = 0;
 [PROCESS_TABLE + (currentPID * 16) + 9] = 0;
 
+
+
 multipush(R1);
-//release kernel lock
-R1 = 4;
-R2 = ACCESS_LOCK_TABLE;
-call MOD_8;
+R1 = RELEASE_LOCK;
+R2 = KERN_LOCK;
+call ACCESS_CONTROL;
 multipop(R1);
 
 
 
-SP = userSp;
+SP = userSP;
 ireturn;
 
  

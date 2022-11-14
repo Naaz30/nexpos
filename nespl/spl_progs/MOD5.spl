@@ -1,119 +1,191 @@
-//module 5
 alias currentPID R0;
 currentPID = [SYSTEM_STATUS_TABLE + 5*CORE + 1];
 
-//The ExpL application does not push the Base Pointer register (BP)
+
+
 multipush(BP);
+
+
 
 alias processTableEntry R1;
 processTableEntry = PROCESS_TABLE + 16*currentPID;
 
-[processTableEntry + 12] = SP % PAGE_SIZE;		//kptr
+
+
+
+[processTableEntry + 12] = SP%512;	
 [processTableEntry + 14] = PTBR;
 [processTableEntry + 15] = PTLR;
 
+
+
+
+multipush(R0,R1);
 R1 = ACQUIRE_SCHED_LOCK;
 call ACCESS_CONTROL;
+multipop(R0,R1);
 
-alias scheduleProc R1;
+
+
+
+
+alias newPID R1;
+newPID = -1;
+
 
 if(CORE == PRIMARY_CORE) then
-	scheduleProc = IDLE_PROCESS;
-	//if paging status is not 0 [paging is ongoing]
+	
+	
+
+
 	if([SYSTEM_STATUS_TABLE + 5] != 0) then
-		if([PROCESS_TABLE + 16*SWAPPER_DAEMON + 4] != WAIT_DISK) then		//not blocked by disk operation
-			scheduleProc = SWAPPER_DAEMON;
-		endif;
-		goto schedule_proc;
+
+		if([PROCESS_TABLE + 16*SWAPPER_DAEMON + 4] != WAIT_DISK) then		
+			newPID = 15;
+		
+
+		else
+           newPID = 0;
+        endif;
+ 
 	endif;
 
-	//if logout status is 1 and secondary core is not running idle2, then schedule idle[wait for core 2 to schedule idle2]
-	if([SYSTEM_STATUS_TABLE + 7] == 1 && [SYSTEM_STATUS_TABLE + 6] != IDLE2_PROCESS) then
-		goto schedule_proc;
+	
+
+	if(newPID == -1 && [SYSTEM_STATUS_TABLE + 7] == 1 && [SYSTEM_STATUS_TABLE + 6] != 14) then
+		newPID = 0;
 	endif;
 
-	alias procId R2;
-	procId = (currentPID+1) % MAX_PROC_NUM;
-	alias procCount R3;
-	procCount = 0;
-	while (procCount < MAX_PROC_NUM) do
 
-		R4 = [PROCESS_TABLE + 16*procId + 4];
-		if (
-			procId != IDLE_PROCESS && 
-			procId != SWAPPER_DAEMON && 
-			procId != IDLE2_PROCESS && 
-			procId != [SYSTEM_STATUS_TABLE + 6] && 		//not process running on core 2
-			[PROCESS_TABLE + 16*procId + 6] == 0 &&		//not swapped
-			(R4 == CREATED || R4 == READY)
-		) then
-			scheduleProc = procId;
-			break;
-		endif;
+    if(newPID == -1)then
 
-		procId = (procId + 1) % MAX_PROC_NUM;
-		procCount = procCount + 1;
-	endwhile;
+
+	     alias i R2;
+	     i = (currentPID+1)%16;
+
+
+
+	     alias num R3;
+	     num = 0;
+         while (num < 16) do
+
+		      R4 = [PROCESS_TABLE + 16*i + 4];
+		      if (i != 0 && i != 15 && i != 14 && i != [SYSTEM_STATUS_TABLE + 6] && [PROCESS_TABLE + 16*i + 6] == 0 && ([PROCESS_TABLE + 16*i + 4] == CREATED || [PROCESS_TABLE + 16*i + 4] == READY)) then
+			       newPID = i;
+			       break;
+		      endif;
+
+		      i = (i+1)%16;
+		      num = num + 1;
+	     endwhile;
+
+	endif;
+
+
+    if(newPID == -1)then
+       newPID = 0;
+	endif;
+
 
 else
-	scheduleProc = IDLE2_PROCESS;
 
-	//if paging status or logout status is set, then schedule idle2
+
+	
+
+	
+
 	if([SYSTEM_STATUS_TABLE + 5] != 0 || [SYSTEM_STATUS_TABLE + 7] == 1) then
-		goto schedule_proc;
+		newPID = 14;
 	endif;
 
-	//available processes are 3-14 [12 count]
-	alias procId R2;
-	//currentPID-3+1
-	procId = ((currentPID - 2) % 12) + 3;
-	alias procCount R3;
-	procCount = 0;
-	while (procCount < 12) do
+	
 
-		R4 = [PROCESS_TABLE + 16*procId + 4];
-		if (
-			procId != IDLE2_PROCESS && 
-			procId != [SYSTEM_STATUS_TABLE + 1] && 		//not process running on core 1
-			[PROCESS_TABLE + 16*procId + 6] == 0 &&		//not swapped
-			(R4 == CREATED || R4 == READY)
-		) then
-				scheduleProc = procId;
-				break;
+	if(newPID == -1)then
+
+
+	    alias i R2;
+	    i = ((currentPID - 2) % 12) + 3;
+
+        
+
+
+	    alias num R3;
+	    num = 0;
+
+
+	    while (num < 12) do
+
+		    
+		    if (i != 14 && i != [SYSTEM_STATUS_TABLE + 1] && [PROCESS_TABLE + 16*i + 6] == 0 && ([PROCESS_TABLE + 16*i + 4] == CREATED || [PROCESS_TABLE + 16*i + 4] == READY)) then
+				    newPID = i;
+				    break;
+		    endif;
+
+		    i = ((i- 2) % 12) + 3;
+
+		    num = num + 1;
+	    endwhile;
+
+
+		if(newPID == -1)then
+
+           newPID = 14;
+
 		endif;
 
-		procId = ((procId- 2) % 12) + 3;
-		procCount = procCount + 1;
-	endwhile;
+
+
+	endif;
 endif;
 
 
-schedule_proc:
 
-[SYSTEM_STATUS_TABLE + 5*CORE + 1] = scheduleProc;
+
+
+
+[SYSTEM_STATUS_TABLE + 5*CORE + 1] = newPID;
 
 alias newProcessTable R2;
-newProcessTable = PROCESS_TABLE + 16*scheduleProc;
+newProcessTable = PROCESS_TABLE + 16*newPID;
+
+
+
 
 PTBR = [newProcessTable + 14];
 PTLR = [newProcessTable + 15];
 
-//if newly created then no user context to restore
+
+
+
+
 if([newProcessTable + 4] == CREATED) then
-	//BP is saved to the beginning of the kernel stack by Fork call at process creation
-	BP = [[newProcessTable + 11]*PAGE_SIZE];
+	
+	BP = [[newProcessTable + 11]*512];
 	[newProcessTable + 4] = RUNNING;
-	[newProcessTable + 9] = 0;				//mode flag
+	[newProcessTable + 9] = 0;	
+
+
 	multipush(R2);
 	R1 = RELEASE_LOCK;
 	R2 = SCHED_LOCK;
 	call ACCESS_CONTROL;
 	multipop(R2);
+
+
 	SP = [newProcessTable + 13];
 	ireturn;
+
+
 endif;
 
+
+
+
+
 [newProcessTable + 4] = RUNNING;
+
+
+
 
 multipush(R2);
 R1 = RELEASE_LOCK;
@@ -121,6 +193,10 @@ R2 = SCHED_LOCK;
 call ACCESS_CONTROL;
 multipop(R2);
 
-SP =  [newProcessTable+11] * PAGE_SIZE + [newProcessTable+12];
+
+
+SP =  [newProcessTable+11]*512 + [newProcessTable+12];
+
 multipop(BP);
+
 return;

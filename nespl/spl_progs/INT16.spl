@@ -1,73 +1,90 @@
-//INT 16
-//print("INT16");
-
-
-
-
-
-alias userSp R1;
-alias pte R2;
 alias currentPID R3;
+currentPID = [SYSTEM_STATUS_TABLE + 5*CORE + 1];
 
-userSp = SP;
-pte = PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 5*CORE + 1]*16;
-[pte + 13] = SP;
-SP = [pte + 11] * 512 - 1;
+
+alias userSP R1;
+userSP = SP;
+
+
+
+alias processTableEntry R2;
+processTableEntry = PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 5*CORE + 1]*16;
+
+
+
+[processTableEntry + 13] = SP;
+SP = [processTableEntry + 11] * 512 - 1;
+
+
+
 
 multipush(R1,R2,R3);
-//acquire kernel lock
-R1 = 1;
-call MOD_8;
+R1 = ACQUIRE_KERN_LOCK;
+call ACCESS_CONTROL;
 multipop(R1,R2,R3);
 
 
-alias retAddr R4;
-alias syscallNum R5;
-alias currentUserID R6;
-alias username R7;
 
-	
+
 
 
 alias iter R9;
 
 
-currentPID = [SYSTEM_STATUS_TABLE + 5*CORE + 1];
-retAddr = [[pte + 14] + 2*((userSp-1)/512)] * 512 + ((userSp - 1)%512);
-syscallNum = [[[pte + 14] + 2*((userSp-5)/512)] * 512 + ((userSp - 5)%512)];
-currentUserID = [pte+3];
-username = [[[pte + 14] + 2*((userSp-4)/512)] * 512 + ((userSp - 4)%512)];
+alias ret R4;
+ret = [[processTableEntry + 14] + 2*((userSP-1)/512)] * 512 + ((userSP - 1)%512);
 
 
 
-//setting mode flag and switching to kernel stack
-[pte + 9] = syscallNum;
+alias syscallNum R5;
+syscallNum = [[[processTableEntry + 14] + 2*((userSP-5)/512)] * 512 + ((userSP - 5)%512)];
+
+
+alias currentUserID R6;
+currentUserID = [processTableEntry+3];
+
+
+
+alias username R7;
+username = [[[processTableEntry + 14] + 2*((userSP-4)/512)] * 512 + ((userSP - 4)%512)];
+
+
+
+
+[processTableEntry + 9] = syscallNum;
+
+
+
 
 
 //Newusr
 if(syscallNum == 22) then
 
-	alias pwd R8;
-	pwd = [[[pte + 14] + 2*((userSp-3)/512)] * 512 + ((userSp - 3)%512)];
+	alias password R8;
+	password = [[[processTableEntry + 14] + 2*((userSP-3)/512)] * 512 + ((userSP - 3)%512)];
 	
-	//if current user is not root or the current process is not shell
+	
 	if(currentUserID != 1 || currentPID != 2) then
-		[retAddr] = -2;
+		[ret] = -2;
 		
-		[pte + 9] = 0;
+		[processTableEntry + 9] = 0;
 		
 		multipush(R1);
-		//release kernel lock
-		R1 = 4;
-		R2 = ACCESS_LOCK_TABLE;
-		call MOD_8;
+		R1 = RELEASE_LOCK;
+        R2 = KERN_LOCK;
+        call ACCESS_CONTROL;
 		multipop(R1);
 		
-		SP = userSp;
+
+		SP = userSP;
 		ireturn;
+
 	endif;
 	
-	//loop through user table to find free entry
+	
+
+
+
 	iter = 0;
 	while(iter < MAX_USER_NUM) do
 		if([USER_TABLE + 2*iter] == -1) then
@@ -75,69 +92,99 @@ if(syscallNum == 22) then
 		endif;
 		iter = iter + 1;
 	endwhile;
+
+
+
+
 	
 	if(iter == MAX_USER_NUM) then
-		[retAddr] = -3;
-		[pte + 9] = 0;
+
+		[ret] = -3;
+		[processTableEntry + 9] = 0;
 		
 		multipush(R1);
-		//release kernel lock
-		R1 = 4;
-		R2 = ACCESS_LOCK_TABLE;
-		call MOD_8;
+		R1 = RELEASE_LOCK;
+        R2 = KERN_LOCK;
+        call ACCESS_CONTROL;
 		multipop(R1);
 		
-		SP = userSp;
+		SP = userSP;
 		ireturn;
+
 	endif;
+
+
+
+
 	
-	encrypt pwd;
+	encrypt password;
+
+
 	
 	[USER_TABLE + 2*iter] = username;
-	[USER_TABLE + 2*iter + 1] = pwd;
+	[USER_TABLE + 2*iter + 1] = password;
+
+
 	
-	[retAddr] = 0;
+	[ret] = 0;
 	
 endif;
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 //Remusr
 if(syscallNum == 23) then
 
 	
 	
-	//if current user is not root or the current process is not shell
+	
 	if(currentUserID != 1 || currentPID != 2) then
-		[retAddr] = -2;
-		[pte + 9] = 0;
+
+		[ret] = -2;
+		[processTableEntry + 9] = 0;
 		
 		multipush(R1);
-		//release kernel lock
-		R1 = 4;
-		R2 = ACCESS_LOCK_TABLE;
-		call MOD_8;
+		R1 = RELEASE_LOCK;
+        R2 = KERN_LOCK;
+        call ACCESS_CONTROL;
 		multipop(R1);
 		
-		SP = userSp;
+		SP = userSP;
 		ireturn;
+
 	endif;
 	
-	//if user to be removed is root or kernel then return -2
+
+	
 	if(username == "root" || username == "kernel") then
-		[retAddr] = -2;
-		[pte + 9] = 0;
+		[ret] = -2;
+		[processTableEntry + 9] = 0;
 		
 		multipush(R1);
-		//release kernel lock
-		R1 = 4;
-		R2 = ACCESS_LOCK_TABLE;
-		call MOD_8;
+		R1 = RELEASE_LOCK;
+        R2 = KERN_LOCK;
+        call ACCESS_CONTROL;
 		multipop(R1);
 		
-		SP = userSp;
+		SP = userSP;
 		ireturn;
 	endif;
+
+
+
 	
-	//loop through user table to find corresponding entry
+	
 	iter = 0;
 	while(iter < MAX_USER_NUM) do
 		if([USER_TABLE + 2*iter] == username) then
@@ -145,75 +192,104 @@ if(syscallNum == 23) then
 		endif;
 		iter = iter + 1;
 	endwhile;
+
+
+
+
 	
 	if(iter == MAX_USER_NUM) then
-		[retAddr] = -1;
-		[pte + 9] = 0;
+
+		[ret] = -1;
+		[processTableEntry + 9] = 0;
 		
 		multipush(R1);
-		//release kernel lock
-		R1 = 4;
-		R2 = ACCESS_LOCK_TABLE;
-		call MOD_8;
+		R1 = RELEASE_LOCK;
+        R2 = KERN_LOCK;
+        call ACCESS_CONTROL;
 		multipop(R1);
 		
-		SP = userSp;
+		SP = userSP;
 		ireturn;
+
 	endif;
+
+
+
+
 	
-	alias user_tb_entry R10;
-	user_tb_entry = USER_TABLE + 2*iter;
+	alias userTableEntry R10;
+	userTableEntry = USER_TABLE + 2*iter;
 	
-	//loop through root file and check if a file of the user to be deleted exists
+	
+
+
 	iter = 0;
 	while(iter < MAX_FILE_NUM) do
 		if([ROOT_FILE + iter*8 + 3] == username && [ROOT_FILE + iter*8] !=-1) then
-			[retAddr] = -3;
-			[pte + 9] = 0;
+			[ret] = -3;
+			[processTableEntry + 9] = 0;
 			
 			multipush(R1);
-			//release kernel lock
-			R1 = 4;
-			R2 = ACCESS_LOCK_TABLE;
-			call MOD_8;
+			R1 = RELEASE_LOCK;
+            R2 = KERN_LOCK;
+            call ACCESS_CONTROL;
 			multipop(R1);
 		
-			SP = userSp;
+			SP = userSP;
 			ireturn;
 		endif;
 		iter = iter + 1;
 	endwhile;
+
+
+
 	
-	[user_tb_entry] = -1;
-	[user_tb_entry + 1] = -1;
+	[userTableEntry] = -1;
+	[userTableEntry + 1] = -1;
 	
-	[retAddr] = 0;	
+	[ret] = 0;	
 	
 endif;
 
-//Setpwd
+
+
+
+
+
+
+
+
+
+
+
+
+//Set password
 if(syscallNum == 24) then
 
-	alias pwd R8;
-	pwd = [[[pte + 14] + 2*((userSp-3)/512)] * 512 + ((userSp - 3)%512)];
+	alias password R8;
+	password = [[[processTableEntry + 14] + 2*((userSP-3)/512)] * 512 + ((userSP - 3)%512)];
 	
-	//if the current process is not shell
+	
 	if(currentPID != 2) then
-		[retAddr] = -2;
-		[pte + 9] = 0;
+
+		[ret] = -2;
+		[processTableEntry + 9] = 0;
 		
 		multipush(R1);
-		//release kernel lock
-		R1 = 4;
-		R2 = ACCESS_LOCK_TABLE;
-		call MOD_8;
+		R1 = RELEASE_LOCK;
+        R2 = KERN_LOCK;
+        call ACCESS_CONTROL;
 		multipop(R1);
 		
-		SP = userSp;
+		SP = userSP;
 		ireturn;
+
 	endif;
 	
-	//loop through user table to find corresponding entry
+	
+
+
+
 	iter = 0;
 	while(iter < MAX_USER_NUM) do
 		if([USER_TABLE + 2*iter] == username) then
@@ -221,44 +297,71 @@ if(syscallNum == 24) then
 		endif;
 		iter = iter + 1;
 	endwhile;
+
+
+
+
 	
 	if(iter == MAX_USER_NUM) then
-		[retAddr] = -2;
-		[pte + 9] = 0;
+		[ret] = -2;
+		[processTableEntry + 9] = 0;
 		
 		multipush(R1);
-		//release kernel lock
-		R1 = 4;
-		R2 = ACCESS_LOCK_TABLE;
-		call MOD_8;
+		R1 = RELEASE_LOCK;
+        R2 = KERN_LOCK;
+        call ACCESS_CONTROL;
 		multipop(R1);
 		
-		SP = userSp;
+		SP = userSP;
 		ireturn;
 	endif;
+
+
+
+
+
 	
-	//if not root and not current user
-	if([pte + 3] != iter && [pte+3] != 1) then
-		[retAddr] = -1;
-		[pte + 9] = 0;
+	
+	if([processTableEntry + 3] != iter && [processTableEntry+3] != 1) then
+
+		[ret] = -1;
+		[processTableEntry + 9] = 0;
 		
 		multipush(R1);
-		//release kernel lock
-		R1 = 4;
-		R2 = ACCESS_LOCK_TABLE;
-		call MOD_8;
+		R1 = RELEASE_LOCK;
+        R2 = KERN_LOCK;
+        call ACCESS_CONTROL;
 		multipop(R1);
 		
-		SP = userSp;
+		SP = userSP;
 		ireturn;
+
 	endif;
+
+
+
+
 	
-	encrypt pwd;
-	[USER_TABLE + 2*iter + 1] = pwd;
+	encrypt password;
+	[USER_TABLE + 2*iter + 1] = password;
+
+
 	
-	[retAddr] = 0;
+	[ret] = 0;
 	
 endif;
+
+
+
+
+
+
+
+
+
+
+
+
 
 //Getuname
 if(syscallNum == 25) then
@@ -267,81 +370,116 @@ if(syscallNum == 25) then
 	
 	
 	if(userID < 0 || userID > 15) then
-		[retAddr] = -1;
-		[pte + 9] = 0;
+		[ret] = -1;
+		[processTableEntry + 9] = 0;
 		
 		multipush(R1);
-		//release kernel lock
-		R1 = 4;
-		R2 = ACCESS_LOCK_TABLE;
-		call MOD_8;
+		R1 = RELEASE_LOCK;
+        R2 = KERN_LOCK;
+        call ACCESS_CONTROL;
 		multipop(R1);
 		
-		SP = userSp;
+		SP = userSP;
 		ireturn;
 	endif;
+
+
+
+
+
+
 	
 	if([USER_TABLE + userID*2] == -1) then
-		[retAddr] = -1;
-		[pte + 9] = 0;
+		[ret] = -1;
+		[processTableEntry + 9] = 0;
 		
 		multipush(R1);
-		//release kernel lock
-		R1 = 4;
-		R2 = ACCESS_LOCK_TABLE;
-		call MOD_8;
+		R1 = RELEASE_LOCK;
+        R2 = KERN_LOCK;
+        call ACCESS_CONTROL;
 		multipop(R1);
 		
-		SP = userSp;
+		SP = userSP;
 		ireturn;
 	endif;
+
+
+
+
+
 	
-	[retAddr] = [USER_TABLE + userID*2];
+	[ret] = [USER_TABLE + userID*2];
+
+
+
+
 endif;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 //Getuid
 if(syscallNum == 26) then
 	
 	
 	
-	//loop through user table to find corresponding entry
+	
 	iter = 0;
 	while(iter < MAX_USER_NUM) do
 		if([USER_TABLE + 2*iter] == username) then
-			[retAddr] = iter;
+			[ret] = iter;
 			break;
 		endif;
 		iter = iter + 1;
 	endwhile;
+
+
+
+
 	
 	if(iter == MAX_USER_NUM) then
-		[retAddr] = -1;
-		[pte + 9] = 0;
+		[ret] = -1;
+		[processTableEntry + 9] = 0;
 		
 		multipush(R1);
-		//release kernel lock
-		R1 = 4;
-		R2 = ACCESS_LOCK_TABLE;
-		call MOD_8;
+		R1 = RELEASE_LOCK;
+        R2 = KERN_LOCK;
+        call ACCESS_CONTROL;
 		multipop(R1);
 		
-		SP = userSp;
+		SP = userSP;
 		ireturn;
 	endif;
+
+
+
 	
 endif;
 
 
 
 
-[pte + 9] = 0;
+
+
+
+[processTableEntry + 9] = 0;
 
 multipush(R1);
-//release kernel lock
-R1 = 4;
-R2 = ACCESS_LOCK_TABLE;
-call MOD_8;
+R1 = RELEASE_LOCK;
+R2 = KERN_LOCK;
+call ACCESS_CONTROL;
 multipop(R1);
 		
-SP = userSp;
+SP = userSP;
 ireturn;

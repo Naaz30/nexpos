@@ -1,74 +1,100 @@
-//update user sp
 [PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 5*CORE + 1] * 16) + 13] = SP;
-// Switch to kernel stack
+
+
 SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 5*CORE + 1] * 16) + 11] * 512 - 1;
 
 backup;
 
+
+
 R1 = ACQUIRE_KERN_LOCK;
 call ACCESS_CONTROL;
 
-//paging status.(if swapping is initiated)
-if([SYSTEM_STATUS_TABLE + 5] != 0) then
-	if([SYSTEM_STATUS_TABLE + 5*CORE + 1] == SWAPPER_DAEMON) then
-		R1 = [SYSTEM_STATUS_TABLE + 5];				//call swap out or swap in
-		R2 = SWAPPER_DAEMON;
-		call PAGER_MODULE;
-	endif;
-	
-	//if not swapper daemon then the idle process is running
-	//(swapping is ongoing but daemon is blocked)
 
+
+
+
+if([SYSTEM_STATUS_TABLE + 5] != 0) then
+
+
+	if([SYSTEM_STATUS_TABLE + 5*CORE + 1] == SWAPPER_DAEMON) then
+		R1 = [SYSTEM_STATUS_TABLE + 5];				
+		R2 = 15;
+		call MOD_6;
+	endif;
+
+
+	
+	
 else
-	//if mem free count less than mem low threshold
+	
+
+
 	if([SYSTEM_STATUS_TABLE + 2] < MEM_LOW) then
-		//set paging status to swap out to get swapped out in next timer interrupt
+		
 		[SYSTEM_STATUS_TABLE + 5] = SWAP_OUT;
 	
-	//if swapped count > 0
-	else if([SYSTEM_STATUS_TABLE + 4] > 0) then
-		//check if there's a swapped out process such that tick > MAX_TICK or if mem free count > mem high
-		//if so, then set paging status to swap in
-		alias procId R0;
-		procId = SHELL_PROCESS + 1;
-		while(procId < IDLE2_PROCESS) do
-			if(
-				[PROCESS_TABLE + 16*procId + 6] == 1 && 
-				([PROCESS_TABLE + 16*procId] > MAX_TICK || [SYSTEM_STATUS_TABLE + 2] > MEM_HIGH)
-			) then
-				[SYSTEM_STATUS_TABLE + 5] = SWAP_IN;
-				break;
-			endif;
-			procId = procId + 1;
-		endwhile;	
+	
+	else 
+	    if([SYSTEM_STATUS_TABLE + 4] > 0) then
+		
+		    alias i R0;
+		    i = 3;
+
+		    while(i < 14) do
+			    if([PROCESS_TABLE + 16*i + 6] == 1 && ([PROCESS_TABLE + 16*i] > MAX_TICK || [SYSTEM_STATUS_TABLE + 2] > MEM_HIGH)) then
+				     [SYSTEM_STATUS_TABLE + 5] = SWAP_IN;
+				     break;
+			    endif;
+			    i = i + 1;
+		    endwhile;	
+
+
+	    endif;
+
+
 
 	endif;
-	endif;
+
+
 endif;
 
 
-//update state of current process
+
 [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 5*CORE + 1] * 16) + 4] = READY;
 
-//update ticks
-alias procId R0;
-procId = 0;
-while(procId < MAX_PROC_NUM) do
-	if([PROCESS_TABLE + 16*procId + 1] >= 0) then
-		[PROCESS_TABLE + 16*procId] = [PROCESS_TABLE + 16*procId] + 1;
+
+
+
+
+alias i R0;
+i = 0;
+while(i < 16) do
+	if([PROCESS_TABLE + 16*i + 1] >= 0) then
+		[PROCESS_TABLE + 16*i] = [PROCESS_TABLE + 16*i] + 1;
 	endif;
-	procId = procId + 1;
+	i = i + 1;
 endwhile;
+
+
+
+
 
 R1 = RELEASE_LOCK;
 R2 = KERN_LOCK;
 call ACCESS_CONTROL;
 
-call CONTEXT_SWITCH;
+
+
+call MOD_5;
+
+
 
 restore;
 
+
+
 SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 5*CORE + 1] * 16) + 13];
-[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 5*CORE + 1] * 16) + 9] = 0;				//mode flag
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 5*CORE + 1] * 16) + 9] = 0;				
 
 ireturn;
