@@ -1,0 +1,121 @@
+alias functionNum R1;
+
+
+
+//Acquire Kernel
+if(functionNum == ACQUIRE_KERN_LOCK) then
+
+
+
+	if(CORE == SECONDARY_CORE) then
+		if(([SYSTEM_STATUS_TABLE + 5] == 1) || ([SYSTEM_STATUS_TABLE + 7] == 1)) then
+			[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 5*CORE + 1]*16 + 4] = READY;
+			
+			multipush(R1);
+			call MOD_5;
+			multipop(R1);
+
+		endif;
+	endif;
+	
+	
+	
+	
+	
+	alias otherCore R2;
+
+	if(CORE == 1) then
+		otherCore = 0;
+	else
+		otherCore = 1;
+	endif;
+
+
+
+	
+	[ACCESS_LOCK_TABLE + 3 + CORE] = 1;
+	[ACCESS_LOCK_TABLE + 7] = otherCore;
+
+
+
+	
+	while(([ACCESS_LOCK_TABLE + 3 + otherCore] == 1) && ([ACCESS_LOCK_TABLE + 7] == otherCore)) do
+		continue;
+	endwhile;
+
+	
+	return;
+endif;
+
+
+
+
+
+
+
+
+
+
+//Acquire Scheduler Lock
+if(functionNum == ACQUIRE_SCHED_LOCK) then
+
+	
+	
+	alias otherCore R2;
+
+	if(CORE == 1) then
+		otherCore = 0;
+	else
+		otherCore = 1;
+	endif;
+
+
+
+
+	
+	[ACCESS_LOCK_TABLE + 5 + CORE] = 1;
+	[ACCESS_LOCK_TABLE + 7] = otherCore;
+
+
+
+	
+	while(([ACCESS_LOCK_TABLE + 5 + otherCore] == 1) && ([ACCESS_LOCK_TABLE + 7] == otherCore)) do
+		continue;
+	endwhile;
+
+
+	
+	return;
+
+endif;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//Release Lock
+if(functionNum == RELEASE_LOCK) then
+
+	alias lock R2;
+	
+	if(lock == ACCESS_LOCK_TABLE + 1) then
+		[ACCESS_LOCK_TABLE + 5 + CORE] = 0;
+	endif;
+	
+	if(lock == ACCESS_LOCK_TABLE) then
+		[ACCESS_LOCK_TABLE + 3 + CORE] = 0;
+	endif;
+	
+	return;
+	
+endif;
+

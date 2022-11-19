@@ -134,12 +134,31 @@ loadi(65,7);
 alias processTableEntry R1;
 
 
+alias i R3;
+
+
 
 //-----------------------------INIT Login--------------------------
 
 
+i = 0;
+
 PTBR = PAGE_TABLE_BASE+20;
 PTLR = 10;
+
+
+
+while(i < 10)do
+
+    [PTBR + 2*i] = -1;
+    [PTBR + 2*i + 1] = "0000";
+
+    i = i + 1;
+
+endwhile;
+
+
+
 
 //library
 [PTBR+0] = 63;
@@ -147,27 +166,16 @@ PTLR = 10;
 [PTBR+2] = 64;
 [PTBR+3] = "0100";
 
-//heap
-[PTBR+4] = -1;
-[PTBR+5] = "0000";
-[PTBR+6] = -1;
-[PTBR+7] = "0000";
 
 //Code
 [PTBR+8] = 65;
 [PTBR+9] = "0100";
-[PTBR+10] = -1;
-[PTBR+11] = "0000";
-[PTBR+12] = -1;
-[PTBR+13] = "0000";
-[PTBR+14] = -1;
-[PTBR+15] = "0000";
+
 
 //Stack
 [PTBR+16] = 66;
 [PTBR+17] = "0110";
-[PTBR+18] = -1;
-[PTBR+19] = "0000";
+
 
 
 processTableEntry = (PROCESS_TABLE+16);
@@ -249,7 +257,7 @@ processTableEntry = PROCESS_TABLE+16+16;
 
 
 alias diskMapTableEntry R2;
-alias i R3;
+
 
 
 diskMapTableEntry = DISK_MAP_TABLE + 2*10;
@@ -315,6 +323,14 @@ endwhile;
 
 [ACCESS_LOCK_TABLE] = 0;
 [ACCESS_LOCK_TABLE + 1] = 0;
+
+
+
+[ACCESS_LOCK_TABLE + 3] = 0;
+[ACCESS_LOCK_TABLE + 4] = 0;
+[ACCESS_LOCK_TABLE + 5] = 0;
+[ACCESS_LOCK_TABLE + 6] = 0;
+[ACCESS_LOCK_TABLE + 7] = 0;
 
 
 

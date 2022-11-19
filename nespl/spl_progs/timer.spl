@@ -14,7 +14,7 @@ call ACCESS_CONTROL;
 
 
 
-if([SYSTEM_STATUS_TABLE + 5] != 0) then
+if([SYSTEM_STATUS_TABLE + 5] != 0 && CORE == PRIMARY_CORE) then
 
 
 	if([SYSTEM_STATUS_TABLE + 5*CORE + 1] == SWAPPER_DAEMON) then

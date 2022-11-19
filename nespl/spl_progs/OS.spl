@@ -1,18 +1,18 @@
-//load the library code
+//Library
 loadi(63,13);
 loadi(64,14);
 
-//load IDLE Program
+//idle
 loadi(69,11);
 
-//load module 7
+//module 7
 loadi(54,67);
 loadi(55,68);
 
-//secondary bootstrap loader code
+//sec os startup
 loadi(128,512);
 
-//load access control modules
+//module 8
 loadi(132,516);
 loadi(133,517);
 
@@ -29,35 +29,42 @@ call BOOT_MODULE;
 PTBR = PAGE_TABLE_BASE;
 PTLR = 10;
 
-[PROCESS_TABLE + 0] = 0; //tick to 0
+[PROCESS_TABLE + 0] = 0; 
 [PROCESS_TABLE + 1] = 0;
 [PROCESS_TABLE + 4] = RUNNING;
-[PROCESS_TABLE + 11] = 76;    //Update user area page
-[PROCESS_TABLE + 13] = 8*512; //User Stack Pointer update
-[PROCESS_TABLE + 12] = 0;     // KPTR to 0
+[PROCESS_TABLE + 11] = 76;   
+[PROCESS_TABLE + 12] = 0;  
+[PROCESS_TABLE + 13] = 8*512; 
 [PROCESS_TABLE + 14] = PTBR;
 [PROCESS_TABLE + 15] = PTLR;
 
-alias iter R1;
 
-iter = 0;
-while(iter < 10) do
-	[PTBR + 2*iter] = -1;
-	[PTBR + 2*iter + 1] = "0000";
-	iter = iter + 1;
+
+
+alias i R1;
+
+i = 0;
+while(i < 10) do
+	[PTBR + 2*i] = -1;
+	[PTBR + 2*i + 1] = "0000";
+	i = i + 1;
 endwhile;
+
 
 //Code
 [PTBR+8] = 69;
 [PTBR+9] = "0100";
+
 
 //Stack
 [PTBR+16] = 70;
 [PTBR+17] = "0110";
 
 
+
 [70*512] = [69*512 + 1];
 [SYSTEM_STATUS_TABLE + 1] = 0;
+
 
 SP = 8*512;
 
@@ -80,11 +87,11 @@ pte = PROCESS_TABLE + 14*16;
 [pte + 15] = PTLR;
 
 
-iter = 0;
-while(iter < 10) do
-	[PTBR + 2*iter] = -1;
-	[PTBR + 2*iter + 1] = "0000";
-	iter = iter + 1;
+i = 0;
+while(i < 10) do
+	[PTBR + 2*i] = -1;
+	[PTBR + 2*i + 1] = "0000";
+	i = i + 1;
 endwhile;
 
 //Code
@@ -98,7 +105,10 @@ endwhile;
 
 start;
 
-// --------------------------------------------------------------------- SWAPPER DAEMON ---------------------------------
+
+
+
+// ----------------------------------------SWAPPER DAEMON ---------------------------------
 PTBR = PAGE_TABLE_BASE + 15*20;
 PTLR = 10;
 
@@ -113,16 +123,20 @@ pte = PROCESS_TABLE + 15*16;
 [pte + 15] = PTLR;
 
 
-iter = 0;
-while(iter < 10) do
-	[PTBR + 2*iter] = -1;
-	[PTBR + 2*iter + 1] = "0000";
-	iter = iter + 1;
+i = 0;
+while(i < 10) do
+	[PTBR + 2*i] = -1;
+	[PTBR + 2*i + 1] = "0000";
+	i = i + 1;
 endwhile;
+
+
 
 //Code
 [PTBR+8] = 69;
 [PTBR+9] = "0100";
+
+
 
 //Stack
 [PTBR+16] = 81;
@@ -131,7 +145,8 @@ endwhile;
 
 [81*512] = [69*512 + 1];
 
-//resetting these values back to IDLE
+
+
 PTBR = PAGE_TABLE_BASE;
 PTLR = 10;
 SP = 8*512;
